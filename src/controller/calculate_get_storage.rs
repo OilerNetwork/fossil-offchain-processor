@@ -135,16 +135,14 @@ fn calculate_proof(trie_proofs: Vec<&serde_json::Value>, storage_keys: Vec<Strin
     let state_root = convert_hex_to_dec(&storage_keys[0]);
     let len_proof = flat_proof.len();
 
-    let json_response = Proof {
+    Proof {
         flat_proof,
         flat_proof_sized_bytes,
         flat_proof_sized_words,
         len_proof,
         address: l1_account_address.to_string(),
         state_root: state_root.to_string(),
-    };
-
-    json_response
+    }
 }
 
 #[derive(Serialize, Deserialize)]

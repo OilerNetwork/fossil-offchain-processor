@@ -4,7 +4,7 @@ use super::hex;
 
 #[derive(Clone, Debug)]
 pub struct Data {
-    raw_bytes: Vec<u8>,
+    pub raw_bytes: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -36,18 +36,6 @@ impl From<hex::HexString> for Data {
     }
 }
 
-impl Into<hex::HexString> for Data {
-    fn into(self) -> hex::HexString {
-        hex::HexString::new(
-            self.raw_bytes
-                .iter()
-                .map(|x| format!("{:02x}", x))
-                .collect::<String>()
-                .as_str(),
-        )
-    }
-}
-
 fn chunk_bytes_input(input: &[u8], chunk_size: usize) -> Vec<&[u8]> {
     (0..input.len())
         .step_by(chunk_size)
@@ -55,9 +43,9 @@ fn chunk_bytes_input(input: &[u8], chunk_size: usize) -> Vec<&[u8]> {
         .collect()
 }
 
-impl Into<IntsSequence> for Data {
-    fn into(self) -> IntsSequence {
-        let chunked = chunk_bytes_input(&self.raw_bytes, 8);
+impl From<Data> for IntsSequence {
+    fn from(data: Data) -> IntsSequence {
+        let chunked = chunk_bytes_input(&data.raw_bytes, 8);
         let mut values = Vec::new();
         for chunk in chunked {
             let value = chunk.iter().fold(0, |acc, x| (acc << 8) | *x as u64);
@@ -65,7 +53,7 @@ impl Into<IntsSequence> for Data {
         }
         IntsSequence {
             values,
-            length: self.raw_bytes.len(),
+            length: data.raw_bytes.len(),
         }
     }
 }

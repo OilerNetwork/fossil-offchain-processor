@@ -11,7 +11,7 @@ use reqwest::Client;
 use dotenv::dotenv;
 use tower_http::trace::TraceLayer;
 use tracing::info_span;
-use tracing_subscriber::{filter, layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::controller::calculate_get_storage::call_mev_blocker_api;
 

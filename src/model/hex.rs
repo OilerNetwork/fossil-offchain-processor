@@ -1,5 +1,7 @@
 use num_bigint::BigInt;
 
+use super::data::Data;
+
 pub struct HexString {
     pub hex: String,
 }
@@ -15,6 +17,17 @@ impl HexString {
                 hex: format!("0x{}", hex_string),
             }
         }
+    }
+}
+
+impl From<Data> for HexString {
+    fn from(data: Data) -> Self {
+        HexString::new(
+            data.raw_bytes
+                .iter()
+                .fold(String::new(), |acc, &x| acc + &format!("{:02x}", x))
+                .as_str(),
+        )
     }
 }
 
