@@ -1,0 +1,17 @@
+[package]
+name = "fossil-offchain-processor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7.5"
+dotenv = "0.15.0"
+serde = { version = "1.0", features = ["derive"] }
+tower = { version = "0.4", features = ["util", "timeout"] }
+tokio = { version = "1.0", features = ["full"] }
+tower-http = { version = "0.5.0", features = ["add-extension", "trace"] }
+reqwest = { version = "0.12.4", features=["json"] }
+serde_json = "1.0.117"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+num-bigint = "0.4.5"
