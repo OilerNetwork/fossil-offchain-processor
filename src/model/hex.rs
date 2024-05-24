@@ -1,4 +1,5 @@
 use num_bigint::BigInt;
+use serde::{de, Deserialize, Deserializer};
 
 use super::data::Data;
 
@@ -31,11 +32,42 @@ impl From<Data> for HexString {
     }
 }
 
-pub fn convert_hex_to_dec(hex_str: &str) -> BigInt {
-    let mut result = BigInt::from(0);
-    for i in 2..hex_str.len() {
-        let digit = BigInt::from(u64::from_str_radix(&hex_str[i..i + 1], 16).unwrap());
-        result = result * BigInt::from(16) + digit;
+impl From<HexString> for u64 {
+    fn from(hex_string: HexString) -> Self {
+        u64::from_str_radix(&hex_string.hex, 16).unwrap()
     }
-    result
+}
+
+impl From<HexString> for BigInt {
+    fn from(hex_string: HexString) -> Self {
+        let mut result = BigInt::from(0);
+        for i in 2..hex_string.hex.len() {
+            let digit = BigInt::from(u64::from_str_radix(&hex_string.hex[i..i + 1], 16).unwrap());
+            result = result * BigInt::from(16) + digit;
+        }
+        result
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum U64OrHex {
+    U64(u64),
+    Hex(String),
+}
+pub fn u64_or_hex<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match U64OrHex::deserialize(deserializer)? {
+        U64OrHex::U64(v) => Ok(v),
+        U64OrHex::Hex(v) => {
+            if v.starts_with("0x") {
+                u64::from_str_radix(v.trim_start_matches("0x"), 16)
+                    .map_err(|e| de::Error::custom(format!("{}", e)))
+            } else {
+                Err(de::Error::custom("no 0x prefix"))
+            }
+        }
+    }
 }

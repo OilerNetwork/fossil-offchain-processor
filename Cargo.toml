@@ -15,3 +15,5 @@ serde_json = "1.0.117"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 num-bigint = "0.4.5"
+primitive-types = { version = "0.12", features = ["serde"] }
+serde_with = "3.8.1"
