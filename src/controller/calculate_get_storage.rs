@@ -82,17 +82,29 @@ pub async fn call_mev_blocker_api(
                 .await
                 .expect("JSON was not well-formatted");
 
+            // Log the response for debugging
+            dbg!(&json);
+
             match json {
                 serde_json::Value::Object(map) => {
-                    let trie_proofs = map.get("result").unwrap();
-                    let response_proof = calculate_proof(trie_proofs, storage_keys);
+                    if let Some(trie_proofs) = map.get("result") {
+                        // Check if storageProof is empty
+                        if trie_proofs.get("storageProof").is_none()
+                            || trie_proofs["storageProof"].as_array().unwrap().is_empty()
+                        {
+                            return (StatusCode::BAD_REQUEST, Json("storageProof is empty"))
+                                .into_response();
+                        }
 
-                    (StatusCode::OK, Json(response_proof)).into_response()
+                        let response_proof = calculate_proof(trie_proofs, storage_keys);
+
+                        (StatusCode::OK, Json(response_proof)).into_response()
+                    } else {
+                        (StatusCode::BAD_REQUEST, Json("result field is missing")).into_response()
+                    }
                 }
                 _ => (StatusCode::BAD_REQUEST, Json("JSON was not well-formatted")).into_response(),
             }
-            // let trie_proofs = res.json().await;
-            // const responseProof = calculateProof(trieProofs, storageKeys);
         }
         Err(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
