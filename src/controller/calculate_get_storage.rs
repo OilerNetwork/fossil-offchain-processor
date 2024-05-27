@@ -190,6 +190,7 @@ fn calculate_proof(
         data: flat_account_proof,
     };
 
+    // ASSUMPTION: we are processing only one storage_key
     let eth_storage_proof = &eth_trie_proofs.storage_proof.first();
     if eth_storage_proof.is_none() {
         return Err(Box::new(std::io::Error::new(

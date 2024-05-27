@@ -17,10 +17,9 @@ cargo run --release
 curl --location 'http://localhost:3000/' \
 --header 'Content-Type: application/json' \
 --data '{
-	"account_address":"0x7F0d15C7FAae65896648C8273B6d7E43f58Fa842",
-    "storage_keys": [  "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421" ]
+	"account_address":"0x6b175474e89094c44da98b954eedeac495271d0f",
+    "storage_keys": [  "0x199c2e6b850bcc9beaea25bf1bacc5741a7aad954d28af9b23f4b53f5404937b" ]
 }'
-
 ```
 
 ## Tests
