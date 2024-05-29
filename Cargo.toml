@@ -17,3 +17,5 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 num-bigint = "0.4.5"
 primitive-types = { version = "0.12", features = ["serde"] }
 serde_with = "3.8.1"
+web3 = "0.19.0"
+secp256k1 = "0.29.0"
