@@ -9,4 +9,3 @@ abigen!(
         function sendLatestParentHashToL2() external payable
     ]"#;
 );
-
