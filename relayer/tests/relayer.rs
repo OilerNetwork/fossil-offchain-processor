@@ -4,8 +4,8 @@ use ethers::{
     providers::{Http, Provider, ProviderExt},
     signers::{LocalWallet, Signer},
 };
-use fossil_offchain_processor::relayer::l1_message_sender::L1MessageSender;
 use primitive_types::H160;
+use relayer::relayer::l1_message_sender::L1MessageSender;
 
 #[tokio::test]
 async fn test_relay() {
