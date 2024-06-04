@@ -1,5 +1,6 @@
 mod controller;
 mod model;
+mod service;
 use axum::{
     extract::{FromRef, MatchedPath},
     http::Request,
@@ -13,7 +14,7 @@ use tower_http::trace::TraceLayer;
 use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::controller::calculate_get_storage::call_mev_blocker_api;
+use crate::controller::mev_blocker::call_mev_blocker_api;
 
 #[derive(Clone)]
 struct AppState {
