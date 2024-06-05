@@ -17,12 +17,12 @@ jobs:
           - beta
           - nightly
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
       - name: Build
-        run: cargo build --release
+        run: cargo build --workspace --all-targets
       - name: Test
-        run: cargo test --release
+        run: cargo test --workspace --all-targets
 
   lint-rust:
     runs-on: ubuntu-latest
@@ -33,8 +33,8 @@ jobs:
           - beta
           - nightly
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Run clippy
-        run: cargo clippy -- -D warnings
+        run: cargo fmt --all -- --check
       - name: Run rustfmt
-        run: cargo fmt -- --check
+        run: cargo clippy --workspace -- -D warnings
