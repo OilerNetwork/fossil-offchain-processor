@@ -70,10 +70,9 @@ where
                 tracing::info!(?l1_message_sender, "Sleep time elapsed");
 
                 let time_since_last_propagation = Instant::now() - last_propagation;
+                let current_block = l1_middleware.get_block_number().await?;
 
-                if time_since_last_propagation >= relaying_period
-                    && last_block != l1_middleware.get_block_number().await?
-                {
+                if time_since_last_propagation >= relaying_period && last_block != current_block {
                     tracing::info!(?l1_message_sender, "Relaying period elapsed");
 
                     tracing::info!(?l1_message_sender, "Sending hash to L2");
@@ -87,7 +86,7 @@ where
                     .await?;
 
                     last_propagation = Instant::now();
-                    last_block = l1_middleware.get_block_number().await?;
+                    last_block = current_block;
                 }
             }
         })
