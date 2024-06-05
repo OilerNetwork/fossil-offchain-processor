@@ -1,41 +1,60 @@
-# fossil-offchain-processor
+# Offchain Processor Components Requirements
 
-## Running the backend
+### 1. Ethereum Data Dispatcher
 
-```bash
+**Goal:**
 
-cargo run --release
+- Connect to the Ethereum network to send block hashes to a specified Starknet smart contract.
 
-```
+**Responsibilities:**
 
-## APIs
+- Establish a connection to the Ethereum blockchain.
+- Call the  function to relay the block hashes on Ethereum
+- Ensure that transactions are signed and sent with the correct gas estimation.
+- Monitor transaction status and confirm successful submissions.
 
-```bash
+### 2. Starknet Contract Handler
 
-# POST /   -- call_mev_blocker_api
+**Goal:**
 
-curl --location 'http://localhost:3000/' \
---header 'Content-Type: application/json' \
---data '{
-	"account_address":"0x6b175474e89094c44da98b954eedeac495271d0f",
-    "storage_keys": [  "0x199c2e6b850bcc9beaea25bf1bacc5741a7aad954d28af9b23f4b53f5404937b" ]
-}'
-```
+- Interact with Starknet smart contracts to perform various read and write operations and verify proofs.
 
-## Tests
+**Responsibilities:**
 
-For running all the test cases
+- Connect to the Starknet blockchain.
+- Execute read operations on specified Starknet smart contracts.
+- Execute write operations on specified Starknet smart contracts.
+- Verify proofs received from the Ethereum Proof Generator and store them on Starknet.
+- Ensure data integrity and confirmation of successful transactions on Starknet.
 
-```bash
+### 3. Ethereum Proof Generator
 
-cargo test --release
+**Goal:**
 
-```
+- Generate storage proofs and retrieve block headers from Ethereum, encoding them into RLP format.
 
-To run a specific test case `test_name`
+**Responsibilities:**
 
-```bash
+- Connect to Ethereum nodes to access blockchain data.
+- Retrieve block headers for specified blocks.
+- Produce storage proofs for given Ethereum accounts and blocks.
+- Encode the retrieved block headers and storage proofs into RLP format.
+- Return the encoded data to the User Request Manager for further processing.
 
-cargo test test_name
+### 4. User Request Manager
 
-```
+**Goal:**
+
+- Manage user requests for specific historical Ethereum account storage values and coordinate interactions with backend components.
+
+**Responsibilities:**
+
+- Receive and parse user requests for Ethereum account storage values.
+- Check if the requested storage value is already available.
+- If not available, coordinate with the Ethereum Data Dispatcher to retrieve necessary block hashes.
+- Store the retrieved block hashes on Starknet using the Starknet Contract Handler.
+- Verify if the requested account has already been proved on Starknet.
+- If the account is proved, produce a storage proof using the Ethereum Proof Generator and verify it on Starknet.
+- If the account is not proved, generate the account proof first, verify it on Starknet, then produce and verify the storage proof.
+- Communicate the final result (storage found or storage not found) back to the user.
+- Ensure the storage value is available for use on Starknet once all verifications are complete.
