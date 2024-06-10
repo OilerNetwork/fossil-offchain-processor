@@ -34,7 +34,7 @@ jobs:
           - nightly
     steps:
       - uses: actions/checkout@v4
-      - name: Run clippy
+      - name: Run fmt
         run: cargo fmt --all -- --check
-      - name: Run rustfmt
+      - name: Run clippy
         run: cargo clippy --workspace -- -D warnings
