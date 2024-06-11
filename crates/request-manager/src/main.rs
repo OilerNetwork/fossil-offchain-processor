@@ -1,3 +1,8 @@
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
 use axum::{
     extract::{FromRef, MatchedPath},
     http::Request,
@@ -7,15 +12,20 @@ use axum::{
 use reqwest::Client;
 
 use dotenv::dotenv;
+use serde::Deserialize;
 use tower_http::trace::TraceLayer;
 use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use proof_generator::controller::mev_blocker::call_mev_blocker_api;
+use utils::get_storage_value;
+
+pub mod utils;
 
 #[derive(Clone)]
 struct AppState {
     client: Client,
+    storage_cache: Arc<Mutex<HashMap<String, String>>>,
 }
 
 // support converting an `AppState` in an `ApiState`
@@ -23,6 +33,12 @@ impl FromRef<AppState> for Client {
     fn from_ref(app_state: &AppState) -> Client {
         app_state.client.clone()
     }
+}
+
+#[derive(Deserialize)]
+struct StorageRequest {
+    account_address: String,
+    storage_key: String,
 }
 
 #[tokio::main]
@@ -36,13 +52,16 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
     dotenv().ok();
+
     let app_state = AppState {
         client: Client::new(),
+        storage_cache: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let app = Router::new()
         // `GET /` goes to `root`
         .route("/", post(call_mev_blocker_api))
+        .route("/getStorageValue", post(get_storage_value))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 // Log the matched route's path (with placeholders not filled in).
