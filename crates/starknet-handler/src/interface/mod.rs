@@ -1,3 +1,4 @@
+use primitive_types::{H160, U256};
 use proof_generator::model::{account_proof::AccountProof, storage_proof::StorageProof};
 
 pub fn store_state_root(state_root: String) {
@@ -22,12 +23,12 @@ pub fn verify_storage_proof(storage_proof: StorageProof) {
 
 pub fn get_storage(
     block: u64,
-    account: primitive_types::H160,
-    slot: primitive_types::H256,
+    account: H160,
+    slot: U256,
     proof_sizes_bytes: Vec<usize>,
     proofs_concat: Vec<u64>,
     state_root: String,
-) -> Option<primitive_types::H256> {
+) -> Option<U256> {
     tracing::info!(
         ?block,
         ?account,
