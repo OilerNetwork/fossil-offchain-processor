@@ -55,7 +55,18 @@ async fn main() {
         )
         .with_state(app_state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
-    tracing::info!("listening on http://{}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind("0.0.0.0:8000").await {
+        Ok(listener) => {
+            tracing::info!("Listening on http://{}", listener.local_addr().unwrap());
+            listener
+        }
+        Err(err) => {
+            tracing::error!("Failed to bind to address: {:?}", err);
+            return;
+        }
+    };
+
+    if let Err(e) = axum::serve(listener, app).await {
+        tracing::error!("Server error: {}", e);
+    }
 }
