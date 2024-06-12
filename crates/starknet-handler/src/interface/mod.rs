@@ -19,3 +19,23 @@ pub fn verify_storage_proof(storage_proof: StorageProof) {
     tracing::info!(?storage_proof, "Checking storage proof status");
     todo!();
 }
+
+pub fn get_storage(
+    block: u64,
+    account: primitive_types::H160,
+    slot: primitive_types::H256,
+    proof_sizes_bytes: Vec<usize>,
+    proofs_concat: Vec<u64>,
+    state_root: String,
+) -> Option<primitive_types::H256> {
+    tracing::info!(
+        ?block,
+        ?account,
+        ?slot,
+        ?proof_sizes_bytes,
+        ?proofs_concat,
+        ?state_root,
+        "Getting storage"
+    );
+    todo!();
+}
