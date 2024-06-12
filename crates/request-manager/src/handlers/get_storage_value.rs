@@ -81,15 +81,24 @@ pub async fn get_storage_value(
                             response_with_status(StatusCode::BAD_REQUEST, "Invalid response format")
                         }
                     }
-                    Err(_) => response_with_status(StatusCode::BAD_REQUEST, "Failed to parse JSON"),
+                    Err(err) => {
+                        eprintln!("Failed to parse JSON: {:?}", err);
+                        response_with_status(StatusCode::BAD_REQUEST, "Failed to parse JSON")
+                    }
                 },
-                Err(_) => response_with_status(StatusCode::INTERNAL_SERVER_ERROR, "Request failed"),
+                Err(err) => {
+                    eprintln!("Request failed: {:?}", err);
+                    response_with_status(StatusCode::INTERNAL_SERVER_ERROR, "Request failed")
+                }
             }
         }
-        Err(_) => response_with_status(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to get block hash",
-        ),
+        Err(err) => {
+            eprintln!("Request failed: {:?}", err);
+            response_with_status(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to get block hash",
+            )
+        }
     }
 }
 
