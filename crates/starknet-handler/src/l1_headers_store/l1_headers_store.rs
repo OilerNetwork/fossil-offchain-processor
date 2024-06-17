@@ -1,16 +1,17 @@
 use starknet::{
-    accounts::{
-        single_owner::SignError, Account, AccountError, Call, ExecutionEncoding, SingleOwnerAccount,
-    },
+    accounts::{Account, Call, ExecutionEncoding, SingleOwnerAccount},
     core::{
         types::{BlockId, BlockTag, FieldElement, FunctionCall, InvokeTransactionResult},
         utils::get_selector_from_name,
     },
-    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider, ProviderError, Url},
+    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider, Url},
     signers::LocalWallet,
 };
 
-use crate::util::get_high_and_low;
+use crate::{
+    error::{FieldElementParseError, HandlerError},
+    util::get_high_and_low,
+};
 
 pub struct L1HeadersStore {
     provider: JsonRpcClient<HttpTransport>,
@@ -37,28 +38,35 @@ impl L1HeadersStore {
         }
     }
 
-    pub async fn store_state_root(&self, block_number: u64, state_root: String) {
+    pub async fn store_state_root(
+        &self,
+        block_number: u64,
+        state_root: String,
+    ) -> Result<InvokeTransactionResult, HandlerError> {
         let (state_root_high, state_root_low) = get_high_and_low(state_root);
 
         let entry_point_selector = get_selector_from_name("store_state_root").unwrap();
         let calldata = vec![
-            FieldElement::from_dec_str(block_number.to_string().as_str()).unwrap(),
-            FieldElement::from_byte_slice_be(&state_root_low.to_be_bytes()).unwrap(),
-            FieldElement::from_byte_slice_be(&state_root_high.to_be_bytes()).unwrap(),
+            FieldElement::from_dec_str(block_number.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
+            FieldElement::from_byte_slice_be(&state_root_low.to_be_bytes())
+                .map_err(FieldElementParseError::FromByteSliceError)?,
+            FieldElement::from_byte_slice_be(&state_root_high.to_be_bytes())
+                .map_err(FieldElementParseError::FromByteSliceError)?,
         ];
 
-        match self.invoke(entry_point_selector, calldata).await {
-            Ok(_) => (),
-            Err(e) => tracing::error!("{:?}", e),
-        }
+        self.invoke(entry_point_selector, calldata).await
     }
 
     pub async fn get_state_root(
         &self,
         block_number: u64,
-    ) -> Result<Vec<FieldElement>, ProviderError> {
-        let entry_point_selector = get_selector_from_name("get_state_root").unwrap();
-        let calldata = vec![FieldElement::from_dec_str(block_number.to_string().as_str()).unwrap()];
+    ) -> Result<Vec<FieldElement>, HandlerError> {
+        let entry_point_selector = get_selector_from_name("get_state_root")?;
+        let calldata = vec![
+            FieldElement::from_dec_str(block_number.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
+        ];
         self.call(entry_point_selector, calldata).await
     }
 
@@ -66,7 +74,7 @@ impl L1HeadersStore {
         &self,
         entry_point_selector: FieldElement,
         calldata: Vec<FieldElement>,
-    ) -> Result<Vec<FieldElement>, ProviderError> {
+    ) -> Result<Vec<FieldElement>, HandlerError> {
         self.provider
             .call(
                 FunctionCall {
@@ -77,17 +85,15 @@ impl L1HeadersStore {
                 BlockId::Tag(BlockTag::Latest),
             )
             .await
+            .map_err(HandlerError::ProviderError)
     }
 
     async fn invoke(
         &self,
         entry_point_selector: FieldElement,
         calldata: Vec<FieldElement>,
-    ) -> Result<
-        InvokeTransactionResult,
-        AccountError<SignError<starknet::signers::local_wallet::SignError>>,
-    > {
-        let chain_id = self.provider.chain_id().await.unwrap();
+    ) -> Result<InvokeTransactionResult, HandlerError> {
+        let chain_id = self.provider.chain_id().await?;
         let account = SingleOwnerAccount::new(
             &self.provider,
             &self.signer,
@@ -104,5 +110,6 @@ impl L1HeadersStore {
             }])
             .send()
             .await
+            .map_err(HandlerError::AccountError)
     }
 }

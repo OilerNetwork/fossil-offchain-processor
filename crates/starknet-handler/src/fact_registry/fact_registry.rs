@@ -9,12 +9,15 @@ use starknet::{
     },
     providers::{
         jsonrpc::{HttpTransport, JsonRpcClient},
-        Provider, ProviderError, Url,
+        Provider, Url,
     },
     signers::LocalWallet,
 };
 
-use crate::util::get_high_and_low;
+use crate::{
+    error::{FieldElementParseError, HandlerError},
+    util::{get_high_and_low, prepare_array_data},
+};
 
 pub struct FactRegistry {
     provider: JsonRpcClient<HttpTransport>,
@@ -47,31 +50,22 @@ impl FactRegistry {
         block_number: u64,
         account_proof: AccountProof,
         slot: String,
-    ) {
+    ) -> Result<InvokeTransactionResult, HandlerError> {
         let (slot_high, slot_low) = get_high_and_low(slot.clone());
-        let bytes_len =
-            FieldElement::from_dec_str(account_proof.bytes.len().to_string().as_str()).unwrap();
-        let data_len =
-            FieldElement::from_dec_str(account_proof.data.len().to_string().as_str()).unwrap();
 
-        let mut bytes = account_proof
-            .bytes
-            .iter()
-            .map(|b| FieldElement::from_dec_str(b.to_string().as_str()).unwrap())
-            .collect::<Vec<_>>();
+        let (bytes_len, mut bytes) = prepare_array_data(account_proof.bytes)?;
+        let (data_len, mut data) = prepare_array_data(account_proof.data)?;
 
-        let mut data = account_proof
-            .data
-            .iter()
-            .map(|b| FieldElement::from_dec_str(b.to_string().as_str()).unwrap())
-            .collect::<Vec<_>>();
-
-        let entry_point_selector = get_selector_from_name("prove_storage").unwrap();
+        let entry_point_selector = get_selector_from_name("prove_storage")?;
         let mut calldata = vec![
-            FieldElement::from_dec_str(block_number.to_string().as_str()).unwrap(),
-            FieldElement::from_dec_str(account_proof.address.to_string().as_str()).unwrap(),
-            FieldElement::from_byte_slice_be(&slot_low.to_be_bytes()).unwrap(),
-            FieldElement::from_byte_slice_be(&slot_high.to_be_bytes()).unwrap(),
+            FieldElement::from_dec_str(block_number.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
+            FieldElement::from_dec_str(account_proof.address.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
+            FieldElement::from_byte_slice_be(&slot_low.to_be_bytes())
+                .map_err(FieldElementParseError::FromByteSliceError)?,
+            FieldElement::from_byte_slice_be(&slot_high.to_be_bytes())
+                .map_err(FieldElementParseError::FromByteSliceError)?,
         ];
 
         calldata.push(bytes_len);
@@ -79,45 +73,32 @@ impl FactRegistry {
         calldata.push(data_len);
         calldata.append(&mut data);
 
-        match self.invoke(entry_point_selector, calldata).await {
-            Ok(_) => (),
-            Err(e) => tracing::error!("{:?}", e),
-        }
+        self.invoke(entry_point_selector, calldata).await
     }
 
-    pub async fn prove_account(&self, block_number: u64, account_proof: AccountProof) {
-        let bytes_len =
-            FieldElement::from_dec_str(account_proof.bytes.len().to_string().as_str()).unwrap();
-        let data_len =
-            FieldElement::from_dec_str(account_proof.data.len().to_string().as_str()).unwrap();
+    pub async fn prove_account(
+        &self,
+        block_number: u64,
+        account_proof: AccountProof,
+    ) -> Result<InvokeTransactionResult, HandlerError> {
+        let (bytes_len, mut bytes) = prepare_array_data(account_proof.bytes)?;
+        let (data_len, mut data) = prepare_array_data(account_proof.data)?;
 
-        let mut bytes = account_proof
-            .bytes
-            .iter()
-            .map(|b| FieldElement::from_dec_str(b.to_string().as_str()).unwrap())
-            .collect::<Vec<_>>();
-
-        let mut data = account_proof
-            .data
-            .iter()
-            .map(|b| FieldElement::from_dec_str(b.to_string().as_str()).unwrap())
-            .collect::<Vec<_>>();
-
-        let entry_point_selector = get_selector_from_name("prove_account").unwrap();
+        let entry_point_selector = get_selector_from_name("prove_account")?;
         let mut calldata = vec![
-            FieldElement::from_dec_str(4.to_string().as_str()).unwrap(),
-            FieldElement::from_dec_str(account_proof.address.to_string().as_str()).unwrap(),
-            FieldElement::from_dec_str(block_number.to_string().as_str()).unwrap(),
+            FieldElement::from_dec_str(4.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
+            FieldElement::from_dec_str(account_proof.address.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
+            FieldElement::from_dec_str(block_number.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
         ];
         calldata.push(bytes_len);
         calldata.append(&mut bytes);
         calldata.push(data_len);
         calldata.append(&mut data);
 
-        match self.invoke(entry_point_selector, calldata).await {
-            Ok(_) => (),
-            Err(e) => tracing::error!("{:?}", e),
-        }
+        self.invoke(entry_point_selector, calldata).await
     }
 
     pub async fn get_storage(
@@ -125,14 +106,18 @@ impl FactRegistry {
         block_number: u64,
         account_proof: AccountProof,
         slot: String,
-    ) -> Result<Vec<FieldElement>, ProviderError> {
+    ) -> Result<Vec<FieldElement>, HandlerError> {
         let (slot_high, slot_low) = get_high_and_low(slot.clone());
-        let entry_point_selector = get_selector_from_name("get_storage").unwrap();
+        let entry_point_selector = get_selector_from_name("get_storage")?;
         let calldata = vec![
-            FieldElement::from_dec_str(block_number.to_string().as_str()).unwrap(),
-            FieldElement::from_dec_str(account_proof.address.to_string().as_str()).unwrap(),
-            FieldElement::from_byte_slice_be(&slot_low.to_be_bytes()).unwrap(),
-            FieldElement::from_byte_slice_be(&slot_high.to_be_bytes()).unwrap(),
+            FieldElement::from_dec_str(block_number.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
+            FieldElement::from_dec_str(account_proof.address.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
+            FieldElement::from_byte_slice_be(&slot_low.to_be_bytes())
+                .map_err(FieldElementParseError::FromByteSliceError)?,
+            FieldElement::from_byte_slice_be(&slot_high.to_be_bytes())
+                .map_err(FieldElementParseError::FromByteSliceError)?,
         ];
         self.call(entry_point_selector, calldata).await
     }
@@ -141,11 +126,13 @@ impl FactRegistry {
         &self,
         block_number: u64,
         account_proof: AccountProof,
-    ) -> Result<Vec<FieldElement>, ProviderError> {
-        let entry_point_selector = get_selector_from_name("get_verified_account_hash").unwrap();
+    ) -> Result<Vec<FieldElement>, HandlerError> {
+        let entry_point_selector = get_selector_from_name("get_verified_account_hash")?;
         let calldata = vec![
-            FieldElement::from_dec_str(block_number.to_string().as_str()).unwrap(),
-            FieldElement::from_dec_str(account_proof.address.to_string().as_str()).unwrap(),
+            FieldElement::from_dec_str(block_number.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
+            FieldElement::from_dec_str(account_proof.address.to_string().as_str())
+                .map_err(FieldElementParseError::FromStrError)?,
         ];
 
         self.call(entry_point_selector, calldata).await
@@ -155,7 +142,7 @@ impl FactRegistry {
         &self,
         entry_point_selector: FieldElement,
         calldata: Vec<FieldElement>,
-    ) -> Result<Vec<FieldElement>, ProviderError> {
+    ) -> Result<Vec<FieldElement>, HandlerError> {
         self.provider
             .call(
                 FunctionCall {
@@ -166,17 +153,15 @@ impl FactRegistry {
                 BlockId::Tag(BlockTag::Latest),
             )
             .await
+            .map_err(HandlerError::ProviderError)
     }
 
     async fn invoke(
         &self,
         entry_point_selector: FieldElement,
         calldata: Vec<FieldElement>,
-    ) -> Result<
-        InvokeTransactionResult,
-        AccountError<SignError<starknet::signers::local_wallet::SignError>>,
-    > {
-        let chain_id = self.provider.chain_id().await.unwrap();
+    ) -> Result<InvokeTransactionResult, HandlerError> {
+        let chain_id = self.provider.chain_id().await?;
         let account = SingleOwnerAccount::new(
             &self.provider,
             &self.signer,
@@ -193,5 +178,6 @@ impl FactRegistry {
             }])
             .send()
             .await
+            .map_err(HandlerError::AccountError)
     }
 }

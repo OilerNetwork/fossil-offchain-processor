@@ -32,7 +32,6 @@ async fn main() {
         signer,
         owner_account,
     );
-
     let res = contract.get_state_root(block_number).await;
 
     println!("{:?}", res);
