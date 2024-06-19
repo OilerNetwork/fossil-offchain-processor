@@ -1,8 +1,6 @@
 use proof_generator::model::account_proof::AccountProof;
 use starknet::{
-    accounts::{
-        single_owner::SignError, Account, AccountError, Call, ExecutionEncoding, SingleOwnerAccount,
-    },
+    accounts::{Account, Call, ExecutionEncoding, SingleOwnerAccount},
     core::{
         types::{BlockId, BlockTag, FieldElement, FunctionCall, InvokeTransactionResult},
         utils::get_selector_from_name,

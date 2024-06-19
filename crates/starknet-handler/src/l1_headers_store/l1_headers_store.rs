@@ -45,7 +45,7 @@ impl L1HeadersStore {
     ) -> Result<InvokeTransactionResult, HandlerError> {
         let (state_root_high, state_root_low) = get_high_and_low(state_root);
 
-        let entry_point_selector = get_selector_from_name("store_state_root").unwrap();
+        let entry_point_selector = get_selector_from_name("store_state_root")?;
         let calldata = vec![
             FieldElement::from_dec_str(block_number.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
