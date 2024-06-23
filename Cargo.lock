@@ -3552,6 +3552,8 @@ dependencies = [
 name = "starknet-handler"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
+ "dotenv",
  "eyre",
  "primitive-types",
  "proof-generator",
