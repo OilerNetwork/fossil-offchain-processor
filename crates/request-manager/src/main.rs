@@ -12,12 +12,11 @@ use tower_http::trace::TraceLayer;
 use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-mod handlers;
+pub mod handlers;
 mod state;
-mod utils;
 
+use crate::state::AppState;
 use handlers::get_storage_value::get_storage_value;
-use state::AppState;
 
 #[tokio::main]
 async fn main() {
