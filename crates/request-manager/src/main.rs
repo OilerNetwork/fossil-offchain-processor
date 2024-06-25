@@ -5,7 +5,16 @@ use axum::{
     Router,
 };
 use dotenv::dotenv;
+use proof_generator::controller::mev_blocker::call_mev_blocker_api;
 use reqwest::Client;
+use starknet::{
+    core::types::FieldElement,
+    signers::{LocalWallet, SigningKey},
+};
+use starknet_handler::{
+    fact_registry::fact_registry::FactRegistry, l1_headers_store::l1_headers_store::L1HeadersStore,
+};
+use std::str::FromStr;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use tower_http::trace::TraceLayer;
@@ -28,15 +37,15 @@ async fn main() {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
-    dotenv().ok();
 
     let app_state = AppState {
         client: Client::new(),
-        storage_cache: Arc::new(Mutex::new(HashMap::new())),
+        // fact_registry: fact_registry_contract, //
+        // l1_headers_store: l1_headers_store_contract,
     };
 
     let app = Router::new()
-        .route("/getStorageValue", post(get_storage_value))
+        .route("/get-storage", post(get_storage_value))
         .layer(
             TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
                 let matched_path = request
