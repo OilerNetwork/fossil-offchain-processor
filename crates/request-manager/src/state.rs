@@ -1,11 +1,12 @@
 use reqwest::Client;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+
+use starknet_handler::{
+    fact_registry::fact_registry::FactRegistry, l1_headers_store::l1_headers_store::L1HeadersStore,
+};
 
 #[derive(Clone)]
 pub struct AppState {
     pub client: Client,
-    pub storage_cache: Arc<Mutex<HashMap<String, String>>>,
-    // pub starknet_handler: StarknetContractHandler,
-    // pub proof_generator: EthereumProofGenerator,
+    // pub fact_registry: FactRegistry,
+    // pub l1_headers_store: L1HeadersStore,
 }
