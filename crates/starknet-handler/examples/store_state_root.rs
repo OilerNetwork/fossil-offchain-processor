@@ -37,7 +37,7 @@ async fn main() {
         owner_account,
     );
 
-    contract
+    let _ = contract
         .store_state_root(block_number, state_root.to_string())
         .await;
 }
