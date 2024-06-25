@@ -1,1 +1,1 @@
-pub mod get_storage_value;
+pub(crate) mod get_storage_value;
