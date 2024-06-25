@@ -1,2 +1,2 @@
 #[allow(clippy::module_inception)]
-mod fact_registry;
+pub mod fact_registry;
