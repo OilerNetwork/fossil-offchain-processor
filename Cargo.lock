@@ -2765,6 +2765,7 @@ dependencies = [
  "axum",
  "dotenv",
  "hex",
+ "primitive-types",
  "proof-generator",
  "reqwest 0.12.4",
  "serde",

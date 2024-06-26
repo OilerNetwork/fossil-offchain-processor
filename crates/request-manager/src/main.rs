@@ -1,22 +1,5 @@
-use axum::{
-    extract::{FromRef, MatchedPath},
-    http::{Request, StatusCode},
-    routing::post,
-    Router,
-};
-use dotenv::dotenv;
-use proof_generator::controller::mev_blocker::call_mev_blocker_api;
+use axum::{extract::MatchedPath, http::Request, routing::post, Router};
 use reqwest::Client;
-use starknet::{
-    core::types::FieldElement,
-    signers::{LocalWallet, SigningKey},
-};
-use starknet_handler::{
-    fact_registry::fact_registry::FactRegistry, l1_headers_store::l1_headers_store::L1HeadersStore,
-};
-use std::str::FromStr;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
 use tower_http::trace::TraceLayer;
 use tracing::info_span;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
