@@ -1,4 +1,5 @@
-use proof_generator::model::account_proof::AccountProof;
+use primitive_types::U256;
+use proof_generator::model::{account_proof::AccountProof, storage_proof::StorageProof};
 use starknet::{
     accounts::{Account, Call, ExecutionEncoding, SingleOwnerAccount},
     core::{
@@ -46,19 +47,20 @@ impl FactRegistry {
     pub async fn prove_storage(
         &self,
         block_number: u64,
-        account_proof: AccountProof,
+        account_address: U256,
+        storage_proof: StorageProof,
         slot: String,
     ) -> Result<InvokeTransactionResult, HandlerError> {
         let (slot_high, slot_low) = get_high_and_low(slot.clone());
 
-        let (bytes_len, mut bytes) = prepare_array_data(account_proof.bytes)?;
-        let (data_len, mut data) = prepare_array_data(account_proof.data)?;
+        let (bytes_len, mut bytes) = prepare_array_data(storage_proof.bytes)?;
+        let (data_len, mut data) = prepare_array_data(storage_proof.data)?;
 
         let entry_point_selector = get_selector_from_name("prove_storage")?;
         let mut calldata = vec![
             FieldElement::from_dec_str(block_number.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
-            FieldElement::from_dec_str(account_proof.address.to_string().as_str())
+            FieldElement::from_dec_str(account_address.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
             FieldElement::from_byte_slice_be(&slot_low.to_be_bytes())
                 .map_err(FieldElementParseError::FromByteSliceError)?,
@@ -102,7 +104,7 @@ impl FactRegistry {
     pub async fn get_storage(
         &self,
         block_number: u64,
-        account_proof: AccountProof,
+        account_address: U256,
         slot: String,
     ) -> Result<Vec<FieldElement>, HandlerError> {
         let (slot_high, slot_low) = get_high_and_low(slot.clone());
@@ -110,7 +112,7 @@ impl FactRegistry {
         let calldata = vec![
             FieldElement::from_dec_str(block_number.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
-            FieldElement::from_dec_str(account_proof.address.to_string().as_str())
+            FieldElement::from_dec_str(account_address.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
             FieldElement::from_byte_slice_be(&slot_low.to_be_bytes())
                 .map_err(FieldElementParseError::FromByteSliceError)?,
@@ -123,13 +125,13 @@ impl FactRegistry {
     pub async fn get_verified_account_hash(
         &self,
         block_number: u64,
-        account_proof: AccountProof,
+        account_address: U256,
     ) -> Result<Vec<FieldElement>, HandlerError> {
         let entry_point_selector = get_selector_from_name("get_verified_account_hash")?;
         let calldata = vec![
             FieldElement::from_dec_str(block_number.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
-            FieldElement::from_dec_str(account_proof.address.to_string().as_str())
+            FieldElement::from_dec_str(account_address.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
         ];
 
