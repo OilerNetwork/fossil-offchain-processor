@@ -9,7 +9,7 @@ use axum::{
 use reqwest::Client;
 use serde_json;
 
-use crate::model::eth_rpc::{EthRpcBody, EthRpcBodyParams, Input};
+use crate::model::eth_rpc::{EthRpcGetProofBody, EthRpcGetProofBodyParams, Input};
 use crate::service::calculate_proof::calculate_proof;
 
 pub async fn call_mev_blocker_api(
@@ -19,13 +19,13 @@ pub async fn call_mev_blocker_api(
     let account_address = input.account_address;
     let storage_keys = input.storage_keys;
 
-    let body = EthRpcBody {
+    let body = EthRpcGetProofBody {
         jsonrpc: "2.0".to_string(),
         method: "eth_getProof".to_string(),
         params: vec![
-            EthRpcBodyParams::AccountAddress(account_address),
-            EthRpcBodyParams::StorageKeys(storage_keys.clone()),
-            EthRpcBodyParams::BlockIdentifier("latest".to_string()),
+            EthRpcGetProofBodyParams::AccountAddress(account_address),
+            EthRpcGetProofBodyParams::StorageKeys(storage_keys.clone()),
+            EthRpcGetProofBodyParams::BlockIdentifier("latest".to_string()),
         ],
         id: "1".to_string(),
     };

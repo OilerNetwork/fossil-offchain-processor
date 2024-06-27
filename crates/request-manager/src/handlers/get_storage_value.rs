@@ -9,8 +9,12 @@ use primitive_types::U256;
 
 use crate::state::AppState;
 use proof_generator::{
-    controller::mev_blocker::call_mev_blocker_api,
-    model::{eth_rpc::Input, proof::Proof},
+    controller::{eth_blocks::call_eth_blocks_api, mev_blocker::call_mev_blocker_api},
+    model::{
+        eth_rpc::{BlockNumber, Input},
+        hex::HexString,
+        proof::Proof,
+    },
 };
 
 use starknet::{
@@ -101,24 +105,38 @@ pub async fn get_storage_value(
 
     // 2. request state_root
     tracing::info!("Request state_root by calling `get_state_root` in l1_headers_store");
+
+    match l1_headers_store_contract
+        .get_state_root(input.block_number)
+        .await
     {
-        match l1_headers_store_contract
-            .get_state_root(input.block_number)
-            .await
-        {
-            Ok(res) => {
-                tracing::info!("Result state_root: {:?}", res.len());
-                res
-            }
-            Err(err) => {
-                tracing::error!("No state_root available, {}", err);
-                // TODO: how to get state root for the block from eth
-                todo!()
-                // let _state_root: Vec<FieldElement> = todo!();
-                // l1_headers_store_contract.store_state_root(input.block_number, todo!());
-                // _state_root
-            }
-        };
+        Ok(_) => {}
+        Err(err) => {
+            tracing::info!("No state_root available, {}", err);
+            // TODO: how to get state root for the block from eth
+            let api_input = BlockNumber {
+                block_number: HexString::new(&format!("0x{:x}", input.block_number)),
+            };
+            let response = call_eth_blocks_api(State(app_state.client.clone()), Json(api_input))
+                .await
+                .into_response();
+
+            let bytes = match axum::body::to_bytes(response.into_body(), usize::MAX).await {
+                Ok(bytes) => bytes,
+                Err(err) => {
+                    tracing::error!("Error converting response body to bytes: {:?}", err);
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json("Error converting response body to bytes"),
+                    )
+                        .into_response();
+                }
+            };
+            let state_root = String::from_utf8(bytes.to_vec()).unwrap();
+            let _ = l1_headers_store_contract
+                .store_state_root(input.block_number, state_root)
+                .await;
+        }
     };
 
     // 3. check account proof status on starknet
