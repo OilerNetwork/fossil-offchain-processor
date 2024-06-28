@@ -78,7 +78,7 @@ pub async fn get_storage_value(
 
     let response_storage = match response_storage {
         Ok(res) => {
-            tracing::info!("Result response_storage: {:?}", res.len());
+            tracing::info!("Result response_storage: {:?}", res);
             res
         }
         Err(err) => {
@@ -110,7 +110,62 @@ pub async fn get_storage_value(
         .get_state_root(input.block_number)
         .await
     {
-        Ok(_) => {}
+        Ok(res) => {
+            tracing::info!("Result state_root: {:?}", res);
+
+            let mut result_string = String::new();
+            let mut value: U256 = U256::from(0);
+            let mut is_low = true;
+            for field_element in &res {
+                let bytes = field_element.to_bytes_be();
+                for byte in bytes {
+                    let bit128_value = u128::from_str(&format!("{:02x}", byte));
+                    if bit128_value.is_ok() {
+                        let bit128_value = bit128_value.unwrap();
+                        if is_low {
+                            value += U256::from(bit128_value);
+                        } else {
+                            value += U256::from(bit128_value) << 128;
+                        }
+                        is_low = !is_low;
+                    }
+                    write!(&mut result_string, "{:x}", byte).unwrap();
+                }
+            }
+
+            println!("result_string: {:?}", result_string);
+            println!("value: {:?}", value);
+            let result_string = value;
+
+            if result_string == U256::from(0) {
+                let api_input = BlockNumber {
+                    block_number: HexString::new(&format!("0x{:x}", input.block_number)),
+                };
+                let response =
+                    call_eth_blocks_api(State(app_state.client.clone()), Json(api_input))
+                        .await
+                        .into_response();
+
+                let bytes = match axum::body::to_bytes(response.into_body(), usize::MAX).await {
+                    Ok(bytes) => bytes,
+                    Err(err) => {
+                        tracing::error!("Error converting response body to bytes: {:?}", err);
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json("Error converting response body to bytes"),
+                        )
+                            .into_response();
+                    }
+                };
+
+                println!("bytes: {:?}", bytes);
+                println!("bytes: {:?}", bytes[1..67].to_vec());
+                let state_root = String::from_utf8(bytes[1..67].to_vec()).unwrap();
+                let _ = l1_headers_store_contract
+                    .store_state_root(input.block_number, state_root)
+                    .await;
+            }
+        }
         Err(err) => {
             tracing::info!("No state_root available, {}", err);
             // TODO: how to get state root for the block from eth
@@ -178,10 +233,10 @@ pub async fn get_storage_value(
         let proof: Proof = match serde_json::from_slice(&bytes) {
             Ok(proof) => proof,
             Err(err) => {
-                tracing::error!("Error deserializing response to StorageProof: {:?}", err);
+                tracing::error!("Error deserializing response to Proof: {:?}", err);
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json("Error deserializing response to StorageProof"),
+                    Json("Error deserializing response to Proof"),
                 )
                     .into_response();
             }
