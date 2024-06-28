@@ -1,11 +1,10 @@
-use std::env;
-
 use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
+use dotenv::dotenv;
 use reqwest::Client;
 use serde_json;
 
@@ -16,6 +15,7 @@ pub async fn call_mev_blocker_api(
     State(client): State<Client>,
     Json(input): Json<Input>,
 ) -> impl IntoResponse {
+    dotenv().ok();
     let account_address = input.account_address;
     let storage_keys = input.storage_keys;
 
@@ -30,7 +30,7 @@ pub async fn call_mev_blocker_api(
         id: "1".to_string(),
     };
 
-    let url = env::var("ETH_RPC").expect("ETH_RPC must be set");
+    let url = dotenv::var("ETH_RPC").expect("ETH_RPC must be set");
 
     let reqwest_response = client
         .post(&url)

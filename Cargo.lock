@@ -2594,6 +2594,7 @@ name = "proof-generator"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "dotenv",
  "hex",
  "num-bigint",
  "primitive-types",
