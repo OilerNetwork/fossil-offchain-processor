@@ -86,7 +86,7 @@ impl FactRegistry {
 
         let entry_point_selector = get_selector_from_name("prove_account")?;
         let mut calldata = vec![
-            FieldElement::from_dec_str(4.to_string().as_str())
+            FieldElement::from_dec_str(0.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
             FieldElement::from_dec_str(account_proof.address.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,

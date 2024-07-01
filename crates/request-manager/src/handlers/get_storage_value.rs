@@ -2,7 +2,6 @@ use axum::{extract::State, response::IntoResponse, Json};
 use dotenv::dotenv;
 use reqwest::StatusCode;
 use serde::Deserialize;
-use std::fmt::Write;
 use std::str::FromStr;
 
 use primitive_types::U256;
@@ -92,15 +91,16 @@ pub async fn get_storage_value(
     };
 
     // If the storage is already available
-    if !response_storage.is_empty() {
-        let mut result_string = String::new();
-        for field_element in &response_storage {
-            let bytes = field_element.to_bytes_be();
-            for byte in bytes {
-                write!(&mut result_string, "{:02x}", byte).unwrap();
-            }
+    if response_storage.len() == 2 {
+        let mut value = U256::from(0);
+        for (i, field_element) in response_storage.iter().enumerate() {
+            let big_int = field_element.to_string();
+            let big_int = U256::from_dec_str(&big_int).unwrap();
+            value += big_int << (i * 128);
         }
-        return (StatusCode::OK, Json(&result_string)).into_response();
+        if value != U256::from(1) {
+            return (StatusCode::OK, Json(&value)).into_response();
+        }
     }
 
     // 2. request state_root
@@ -113,28 +113,14 @@ pub async fn get_storage_value(
         Ok(res) => {
             tracing::info!("Result state_root: {:?}", res);
 
-            let mut result_string = String::new();
             let mut value: U256 = U256::from(0);
-            let mut is_low = true;
-            for field_element in &res {
-                let bytes = field_element.to_bytes_be();
-                for byte in bytes {
-                    let bit128_value = u128::from_str(&format!("{:02x}", byte));
-                    if bit128_value.is_ok() {
-                        let bit128_value = bit128_value.unwrap();
-                        if is_low {
-                            value += U256::from(bit128_value);
-                        } else {
-                            value += U256::from(bit128_value) << 128;
-                        }
-                        is_low = !is_low;
-                    }
-                    write!(&mut result_string, "{:x}", byte).unwrap();
-                }
+
+            for (i, field_element) in res.iter().enumerate() {
+                let big_int = field_element.to_string();
+                let big_int = U256::from_dec_str(&big_int).unwrap();
+                value += big_int << (i * 128);
             }
 
-            println!("result_string: {:?}", result_string);
-            println!("value: {:?}", value);
             let result_string = value;
 
             if result_string == U256::from(0) {
@@ -161,6 +147,7 @@ pub async fn get_storage_value(
                 println!("bytes: {:?}", bytes);
                 println!("bytes: {:?}", bytes[1..67].to_vec());
                 let state_root = String::from_utf8(bytes[1..67].to_vec()).unwrap();
+                println!("{}", state_root);
                 let _ = l1_headers_store_contract
                     .store_state_root(input.block_number, state_root)
                     .await;
@@ -250,12 +237,42 @@ pub async fn get_storage_value(
             .prove_account(input.block_number, eth_proof.account_proof.clone())
             .await
         {
-            Ok(_) => (),
+            Ok(res) => {
+                let value = res.transaction_hash.to_string();
+                match U256::from_dec_str(&value) {
+                    Ok(res) => {
+                        if res == U256::from(1) {
+                            tracing::info!("Account is verified on Starknet");
+                        } else if res == U256::from(0) {
+                            tracing::info!("Account is not verified on Starknet");
+                        } else {
+                            tracing::error!(
+                                "Starknet returned an error while verifying the account proof"
+                            );
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(
+                                    "Starknet returned an error while verifying the account proof",
+                                ),
+                            )
+                                .into_response();
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!("Error while verifying the account proof: {:?}", err);
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json("Error while verifying the account proof"),
+                        )
+                            .into_response();
+                    }
+                }
+            }
             Err(err) => {
                 tracing::error!("Error while verifying the account proof: {:?}", err);
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json("Error while verifying the account proof"),
+                    Json("Error while calling prove_account"),
                 )
                     .into_response();
             }
