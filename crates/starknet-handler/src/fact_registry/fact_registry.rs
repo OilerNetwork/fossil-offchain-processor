@@ -86,7 +86,7 @@ impl FactRegistry {
 
         let entry_point_selector = get_selector_from_name("prove_account")?;
         let mut calldata = vec![
-            FieldElement::from_dec_str(4.to_string().as_str())
+            FieldElement::from_dec_str(0.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
             FieldElement::from_dec_str(account_proof.address.to_string().as_str())
                 .map_err(FieldElementParseError::FromStrError)?,
@@ -150,7 +150,7 @@ impl FactRegistry {
                     entry_point_selector,
                     calldata,
                 },
-                BlockId::Tag(BlockTag::Latest),
+                BlockId::Tag(BlockTag::Pending),
             )
             .await
             .map_err(HandlerError::ProviderError)
@@ -162,14 +162,21 @@ impl FactRegistry {
         calldata: Vec<FieldElement>,
     ) -> Result<InvokeTransactionResult, HandlerError> {
         let chain_id = self.provider.chain_id().await?;
-        let account = SingleOwnerAccount::new(
+        let mut account = SingleOwnerAccount::new(
             &self.provider,
             &self.signer,
             self.owner_account,
             chain_id,
             ExecutionEncoding::New,
         );
+        account.set_block_id(BlockId::Tag(BlockTag::Latest));
 
+        // let nonce = self
+        //     .provider
+        //     .get_nonce((BlockId::Tag(BlockTag::Latest)), self.fact_registry)
+        //     .await
+        //     .map_err(HandlerError::ProviderError)?;
+        //
         account
             .execute(vec![Call {
                 to: self.fact_registry,

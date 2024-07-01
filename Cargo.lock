@@ -2594,6 +2594,7 @@ name = "proof-generator"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "dotenv",
  "hex",
  "num-bigint",
  "primitive-types",
@@ -2765,10 +2766,14 @@ dependencies = [
  "axum",
  "dotenv",
  "hex",
+ "primitive-types",
  "proof-generator",
  "reqwest 0.12.4",
  "serde",
  "serde_json",
+ "starknet",
+ "starknet-handler",
+ "thiserror",
  "tokio",
  "tower",
  "tower-http",
