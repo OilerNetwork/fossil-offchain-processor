@@ -22,7 +22,7 @@ pub async fn call_eth_blocks_api(
         jsonrpc: "2.0".to_string(),
         method: "eth_getBlockByNumber".to_string(),
         params: vec![
-            EthRpcGetBlockByNumberBodyParams::BlockIdentifier(input.block_number.hex),
+            EthRpcGetBlockByNumberBodyParams::BlockIdentifier(input.block_number.hex.clone()),
             EthRpcGetBlockByNumberBodyParams::IncludeTransactions(false),
         ],
         id: "1".to_string(),
@@ -41,7 +41,10 @@ pub async fn call_eth_blocks_api(
             Ok(json) => handle_json_response(json),
             Err(_) => response_with_status(StatusCode::BAD_REQUEST, "JSON was not well-formatted"),
         },
-        Err(_) => response_with_status(StatusCode::BAD_REQUEST, "Request failed"),
+        Err(err) => {
+            tracing::error!("Request to Ethereum node failed: {:?}", err);
+            response_with_status(StatusCode::BAD_REQUEST, "Request failed")
+        }
     }
 }
 

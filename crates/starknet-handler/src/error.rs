@@ -3,11 +3,12 @@ use thiserror::Error;
 use starknet::{
     accounts::{single_owner::SignError, AccountError},
     core::{
-        types::{FromByteSliceError, FromStrError},
+        types::eth_address::FromBytesSliceError,
         utils::NonAsciiNameError,
     },
     providers::ProviderError,
 };
+use starknet_types_core::felt::FromStrError;
 
 #[derive(Debug, Error)]
 pub enum HandlerError {
@@ -26,5 +27,5 @@ pub enum FieldElementParseError {
     #[error("FromStr error: {0}")]
     FromStrError(#[from] FromStrError),
     #[error("FromByteSlice error: {0}")]
-    FromByteSliceError(#[from] FromByteSliceError),
+    FromByteSliceError(#[from] FromBytesSliceError),
 }
