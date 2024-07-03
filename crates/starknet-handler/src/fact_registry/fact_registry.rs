@@ -1,10 +1,13 @@
 use primitive_types::U256;
 use proof_generator::model::{account_proof::AccountProof, storage_proof::StorageProof};
 use starknet::{
-    accounts::{Account, Call, ExecutionEncoding, SingleOwnerAccount}, core::{
+    accounts::{Account, Call, ExecutionEncoding, SingleOwnerAccount},
+    core::{
         types::{BlockId, BlockTag, Felt, FunctionCall, InvokeTransactionResult},
         utils::get_selector_from_name,
-    }, macros::felt, providers::{
+    },
+    macros::felt,
+    providers::{
         jsonrpc::{HttpTransport, JsonRpcClient},
         Provider, Url,
     }, signers::LocalWallet
@@ -111,26 +114,26 @@ impl FactRegistry {
     ) -> Result<Vec<Felt>, HandlerError> {
         let (slot_high, slot_low) = get_high_and_low(slot.clone());
         let entry_point_selector = get_selector_from_name("get_storage")?;
-    
+
         // Convert block_number to Felt directly
         let block_number_felt = Felt::from(block_number);
-    
+
         // Convert account_address to bytes and then to Felt
         let mut account_address_bytes = [0u8; 32];
         account_address.to_big_endian(&mut account_address_bytes);
         let account_address_felt = Felt::from_bytes_be_slice(&account_address_bytes);
-    
+
         // Convert slot parts to Felt
         let slot_low_felt = Felt::from_bytes_be_slice(&slot_low.to_be_bytes());
         let slot_high_felt = Felt::from_bytes_be_slice(&slot_high.to_be_bytes());
-    
+
         let calldata = vec![
             block_number_felt,
             account_address_felt,
             slot_low_felt,
             slot_high_felt,
         ];
-    
+
         self.call(entry_point_selector, calldata).await
     }
 
@@ -194,7 +197,8 @@ impl FactRegistry {
                 to: self.fact_registry,
                 selector: entry_point_selector,
                 calldata,
-            }]).max_fee(felt!("1000000000000000000"))
+            }])
+            .max_fee(felt!("1000000000000000000"))
             .send()
             .await
             .map_err(HandlerError::AccountError)

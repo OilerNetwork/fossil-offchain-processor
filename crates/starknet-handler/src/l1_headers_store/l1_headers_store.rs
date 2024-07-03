@@ -1,8 +1,12 @@
 use starknet::{
-    accounts::{Account, Call, ExecutionEncoding, SingleOwnerAccount}, core::{
+    accounts::{Account, Call, ExecutionEncoding, SingleOwnerAccount},
+    core::{
         types::{BlockId, BlockTag, Felt, FunctionCall, InvokeTransactionResult},
         utils::get_selector_from_name,
-    }, macros::felt, providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider, Url}, signers::LocalWallet
+    },
+    macros::felt,
+    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider, Url},
+    signers::LocalWallet,
 };
 
 use crate::{
@@ -43,33 +47,24 @@ impl L1HeadersStore {
         let (state_root_high, state_root_low) = get_high_and_low(state_root);
     
         let entry_point_selector = get_selector_from_name("store_state_root")?;
-    
+
         // Convert block_number to Felt directly
         let block_number_felt = Felt::from(block_number);
-    
+
         // Convert state_root parts to Felt
         let state_root_low_felt = Felt::from_bytes_be_slice(&state_root_low.to_be_bytes());
         let state_root_high_felt = Felt::from_bytes_be_slice(&state_root_high.to_be_bytes());
-    
-        let calldata = vec![
-            block_number_felt,
-            state_root_low_felt,
-            state_root_high_felt,
-        ];
-    
+
+        let calldata = vec![block_number_felt, state_root_low_felt, state_root_high_felt];
+
         self.invoke(entry_point_selector, calldata).await
     }
     
 
-    pub async fn get_state_root(
-        &self,
-        block_number: u64,
-    ) -> Result<Vec<Felt>, HandlerError> {
+    pub async fn get_state_root(&self, block_number: u64) -> Result<Vec<Felt>, HandlerError> {
         let entry_point_selector = get_selector_from_name("get_state_root")?;
-        let calldata = vec![
-            Felt::from_dec_str(block_number.to_string().as_str())
-                .map_err(FieldElementParseError::FromStrError)?,
-        ];
+        let calldata = vec![Felt::from_dec_str(block_number.to_string().as_str())
+            .map_err(FieldElementParseError::FromStrError)?];
         self.call(entry_point_selector, calldata).await
     }
 
@@ -110,7 +105,8 @@ impl L1HeadersStore {
                 to: self.l1_headers_store,
                 selector: entry_point_selector,
                 calldata,
-            }]).max_fee(felt!("1000000000000000000"))
+            }])
+            .max_fee(felt!("1000000000000000000"))
             .send()
             .await
             .map_err(HandlerError::AccountError)

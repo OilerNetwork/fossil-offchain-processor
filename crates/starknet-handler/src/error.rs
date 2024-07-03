@@ -2,10 +2,7 @@ use thiserror::Error;
 
 use starknet::{
     accounts::{single_owner::SignError, AccountError},
-    core::{
-        types::eth_address::FromBytesSliceError,
-        utils::NonAsciiNameError,
-    },
+    core::{types::eth_address::FromBytesSliceError, utils::NonAsciiNameError},
     providers::ProviderError,
 };
 use starknet_types_core::felt::FromStrError;

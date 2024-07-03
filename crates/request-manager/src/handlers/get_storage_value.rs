@@ -281,14 +281,15 @@ pub async fn get_storage_value(
 
     if !is_account_proved {
         tracing::info!("Account is not verified yet, verifying on Starknet");
-        println!("block_number: {:?}", input.block_number);
-        println!("account_proof: {:?}", eth_proof.account_proof.clone());
+        println!("{}", serde_json::to_string_pretty(&eth_proof).unwrap());
         match fact_registry_contract
             .prove_account(input.block_number, eth_proof.account_proof.clone())
             .await
         {
             Ok(res) => {
+                println!("res: {:?}", res);
                 let value = res.transaction_hash.to_string();
+                println!("value: {}", value);
                 match U256::from_dec_str(&value) {
                     Ok(res) => {
                         if res == U256::from(1) {
