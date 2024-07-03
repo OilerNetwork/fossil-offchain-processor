@@ -18,6 +18,9 @@ use crate::{
     util::{get_high_and_low, prepare_array_data},
 };
 
+/// The `FactRegistry` struct is responsible for interacting with a smart contract
+/// that serves as a registry for various proofs (e.g., storage proofs, account proofs).
+/// It communicates with a StarkNet blockchain via JSON-RPC.
 pub struct FactRegistry {
     provider: JsonRpcClient<HttpTransport>,
     signer: LocalWallet,
@@ -27,6 +30,18 @@ pub struct FactRegistry {
 
 #[allow(dead_code)]
 impl FactRegistry {
+    /// Creates a new instance of `FactRegistry`.
+    ///
+    /// # Arguments
+    ///
+    /// * `rpc` - A string slice that holds the URL of the JSON-RPC endpoint.
+    /// * `fact_registry` - The field element representing the fact registry contract address.
+    /// * `signer` - The local wallet used for signing transactions.
+    /// * `owner_account` - The field element representing the owner's account address.
+    ///
+    /// # Returns
+    ///
+    /// A new instance of `FactRegistry`.
     pub fn new(
         rpc: &str,
         fact_registry: FieldElement,
@@ -44,6 +59,18 @@ impl FactRegistry {
         }
     }
 
+    /// Sends a transaction to the fact registry contract to prove storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_number` - The block number at which the proof is valid.
+    /// * `account_address` - The U256 representation of the account address.
+    /// * `storage_proof` - The storage proof data.
+    /// * `slot` - The storage slot as a string.
+    ///
+    /// # Returns
+    ///
+    /// A result containing the invocation transaction result or a handler error.
     pub async fn prove_storage(
         &self,
         block_number: u64,
@@ -76,6 +103,16 @@ impl FactRegistry {
         self.invoke(entry_point_selector, calldata).await
     }
 
+    /// Sends a transaction to the fact registry contract to prove an account.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_number` - The block number at which the proof is valid.
+    /// * `account_proof` - The account proof data.
+    ///
+    /// # Returns
+    ///
+    /// A result containing the invocation transaction result or a handler error.
     pub async fn prove_account(
         &self,
         block_number: u64,
@@ -101,6 +138,17 @@ impl FactRegistry {
         self.invoke(entry_point_selector, calldata).await
     }
 
+    /// Calls the fact registry contract to get storage data.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_number` - The block number at which the data is valid.
+    /// * `account_address` - The U256 representation of the account address.
+    /// * `slot` - The storage slot as a string.
+    ///
+    /// # Returns
+    ///
+    /// A result containing a vector of field elements representing the storage data or a handler error.
     pub async fn get_storage(
         &self,
         block_number: u64,
@@ -122,6 +170,16 @@ impl FactRegistry {
         self.call(entry_point_selector, calldata).await
     }
 
+    /// Calls the fact registry contract to get the verified account hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_number` - The block number at which the data is valid.
+    /// * `account_address` - The U256 representation of the account address.
+    ///
+    /// # Returns
+    ///
+    /// A result containing a vector of field elements representing the account hash or a handler error.
     pub async fn get_verified_account_hash(
         &self,
         block_number: u64,
@@ -138,6 +196,16 @@ impl FactRegistry {
         self.call(entry_point_selector, calldata).await
     }
 
+    /// Sends a call to the fact registry contract.
+    ///
+    /// # Arguments
+    ///
+    /// * `entry_point_selector` - The entry point selector of the contract function.
+    /// * `calldata` - The calldata to be sent to the contract function.
+    ///
+    /// # Returns
+    ///
+    /// A result containing a vector of field elements representing the call result or a handler error.
     async fn call(
         &self,
         entry_point_selector: FieldElement,
@@ -156,6 +224,16 @@ impl FactRegistry {
             .map_err(HandlerError::ProviderError)
     }
 
+    /// Sends an invocation transaction to the fact registry contract.
+    ///
+    /// # Arguments
+    ///
+    /// * `entry_point_selector` - The entry point selector of the contract function.
+    /// * `calldata` - The calldata to be sent to the contract function.
+    ///
+    /// # Returns
+    ///
+    /// A result containing the invocation transaction result or a handler error.
     async fn invoke(
         &self,
         entry_point_selector: FieldElement,

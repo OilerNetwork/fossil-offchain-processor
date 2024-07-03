@@ -13,6 +13,8 @@ use crate::{
     util::get_high_and_low,
 };
 
+/// The `L1HeadersStore` struct is responsible for interacting with a smart contract
+/// that stores L1 state roots on the StarkNet blockchain.
 pub struct L1HeadersStore {
     provider: JsonRpcClient<HttpTransport>,
     signer: LocalWallet,
@@ -21,6 +23,18 @@ pub struct L1HeadersStore {
 }
 
 impl L1HeadersStore {
+    /// Creates a new instance of `L1HeadersStore`.
+    ///
+    /// # Arguments
+    ///
+    /// * `rpc` - A string slice that holds the URL of the JSON-RPC endpoint.
+    /// * `l1_headers_store` - The field element representing the L1 headers store contract address.
+    /// * `signer` - The local wallet used for signing transactions.
+    /// * `owner_account` - The field element representing the owner's account address.
+    ///
+    /// # Returns
+    ///
+    /// A new instance of `L1HeadersStore`.
     pub fn new(
         rpc: &str,
         l1_headers_store: FieldElement,
@@ -38,6 +52,16 @@ impl L1HeadersStore {
         }
     }
 
+    /// Sends a transaction to the L1 headers store contract to store a state root.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_number` - The block number associated with the state root.
+    /// * `state_root` - The state root as a string.
+    ///
+    /// # Returns
+    ///
+    /// A result containing the invocation transaction result or a handler error.
     pub async fn store_state_root(
         &self,
         block_number: u64,
@@ -58,6 +82,15 @@ impl L1HeadersStore {
         self.invoke(entry_point_selector, calldata).await
     }
 
+    /// Calls the L1 headers store contract to get the state root for a specific block number.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_number` - The block number for which the state root is requested.
+    ///
+    /// # Returns
+    ///
+    /// A result containing a vector of field elements representing the state root or a handler error.
     pub async fn get_state_root(
         &self,
         block_number: u64,
@@ -70,6 +103,16 @@ impl L1HeadersStore {
         self.call(entry_point_selector, calldata).await
     }
 
+    /// Sends a call to the L1 headers store contract.
+    ///
+    /// # Arguments
+    ///
+    /// * `entry_point_selector` - The entry point selector of the contract function.
+    /// * `calldata` - The calldata to be sent to the contract function.
+    ///
+    /// # Returns
+    ///
+    /// A result containing a vector of field elements representing the call result or a handler error.
     async fn call(
         &self,
         entry_point_selector: FieldElement,
@@ -88,6 +131,16 @@ impl L1HeadersStore {
             .map_err(HandlerError::ProviderError)
     }
 
+    /// Sends an invocation transaction to the L1 headers store contract.
+    ///
+    /// # Arguments
+    ///
+    /// * `entry_point_selector` - The entry point selector of the contract function.
+    /// * `calldata` - The calldata to be sent to the contract function.
+    ///
+    /// # Returns
+    ///
+    /// A result containing the invocation transaction result or a handler error.
     async fn invoke(
         &self,
         entry_point_selector: FieldElement,
