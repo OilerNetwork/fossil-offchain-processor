@@ -14,3 +14,4 @@ num-bigint = "0.4.5"
 primitive-types = { version = "0.12", features = ["serde"] }
 serde_with = "3.8.1"
 dotenv = "0.15.0"
+tracing = "0.1.40"

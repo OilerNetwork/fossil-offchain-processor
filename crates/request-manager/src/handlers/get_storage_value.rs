@@ -136,6 +136,16 @@ pub async fn get_storage_value(
                         .await
                         .into_response();
 
+                println!("api response: {:?}", response);
+                if response.status() == StatusCode::BAD_REQUEST {
+                    tracing::error!("Bad request error: {:?}", response);
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json("Error: Bad request to external API"),
+                    )
+                        .into_response();
+                }
+
                 let bytes = match axum::body::to_bytes(response.into_body(), usize::MAX).await {
                     Ok(bytes) => bytes,
                     Err(err) => {
@@ -149,8 +159,28 @@ pub async fn get_storage_value(
                 };
 
                 println!("bytes: {:?}", bytes);
-                println!("bytes: {:?}", bytes[1..67].to_vec());
-                let state_root = String::from_utf8(bytes[1..67].to_vec()).unwrap();
+
+                if bytes.len() < 68 {
+                    tracing::error!("Response body too short, expected at least 68 bytes, got {}", bytes.len());
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json("Response body too short"),
+                    )
+                        .into_response();
+                }
+
+                let state_root = match String::from_utf8(bytes[1..67].to_vec()) {
+                    Ok(state_root) => state_root,
+                    Err(err) => {
+                        tracing::error!("Error converting bytes to string: {:?}", err);
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json("Error converting bytes to string"),
+                        )
+                            .into_response();
+                    }
+                };
+
                 println!("{}", state_root);
                 let _ = l1_headers_store_contract
                     .store_state_root(input.block_number, state_root)
@@ -159,13 +189,23 @@ pub async fn get_storage_value(
         }
         Err(err) => {
             tracing::info!("No state_root available, {}", err);
-            // TODO: how to get state root for the block from eth
             let api_input = BlockNumber {
                 block_number: HexString::new(&format!("0x{:x}", input.block_number)),
             };
+            println!("api_input: {:?}", api_input);
             let response = call_eth_blocks_api(State(app_state.client.clone()), Json(api_input))
                 .await
                 .into_response();
+            println!("response: {:?}", response);
+
+            if response.status() == StatusCode::BAD_REQUEST {
+                tracing::error!("Bad request error: {:?}", response);
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json("Error: Bad request to external API"),
+                )
+                    .into_response();
+            }
 
             let bytes = match axum::body::to_bytes(response.into_body(), usize::MAX).await {
                 Ok(bytes) => bytes,
@@ -178,9 +218,12 @@ pub async fn get_storage_value(
                         .into_response();
                 }
             };
+            println!("bytes: {:?}", bytes);
             let state_root = String::from_utf8(bytes.to_vec()).unwrap();
+            let state_root = state_root.trim_matches('"');
+            println!("state_root: {:?}", state_root);
             let _ = l1_headers_store_contract
-                .store_state_root(input.block_number, state_root)
+                .store_state_root(input.block_number, state_root.to_string())
                 .await;
         }
     };
@@ -195,7 +238,6 @@ pub async fn get_storage_value(
         .await
         .is_ok();
 
-    // I think the name `call_mev_blocker_api` should be changed
     // 4. Call eth_getProof
     tracing::info!("Request eth_getProof");
     let eth_proof = {
@@ -204,7 +246,6 @@ pub async fn get_storage_value(
             storage_keys: input.storage_keys.clone(),
         };
 
-        // I think the name `call_mev_blocker_api` should be changed
         let response = call_mev_blocker_api(State(app_state.client.clone()), Json(api_input))
             .await
             .into_response();
@@ -235,6 +276,9 @@ pub async fn get_storage_value(
 
         proof
     };
+
+    println!("eth proof: {:?}", eth_proof);
+
     if !is_account_proved {
         tracing::info!("Account is not verified yet, verifying on Starknet");
         println!("{}", serde_json::to_string_pretty(&eth_proof).unwrap());

@@ -39,7 +39,7 @@ pub enum EthRpcGetBlockByNumberBodyParams {
     IncludeTransactions(bool),
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct BlockNumber {
     pub block_number: HexString,
 }
