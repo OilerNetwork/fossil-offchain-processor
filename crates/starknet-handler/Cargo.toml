@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 proof-generator = { path = "../proof-generator" }
-starknet = "0.10.0"
+starknet = "0.11.0"
+starknet-types-core = "0.1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.117"
 tokio = { version = "1.0", features = ["full"] }

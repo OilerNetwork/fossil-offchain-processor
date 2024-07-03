@@ -17,7 +17,7 @@ use proof_generator::{
 };
 
 use starknet::{
-    core::types::FieldElement,
+    core::types::Felt,
     signers::{LocalWallet, SigningKey},
 };
 use starknet_handler::{
@@ -39,16 +39,20 @@ pub async fn get_storage_value(
     dotenv().ok();
 
     let private_key = dotenv::var("KATANA_8_PRIVATE_KEY").unwrap();
+    let private_key_felt = Felt::from_hex(&private_key).unwrap();
+
     let owner_account = dotenv::var("KATANA_8_ADDRESS").unwrap();
-    let owner_account = FieldElement::from_str(owner_account.as_str()).unwrap();
-    let signer = LocalWallet::from(SigningKey::from_secret_scalar(
-        FieldElement::from_hex_be(&private_key).unwrap(),
-    ));
+    let owner_account = Felt::from_hex(&owner_account).unwrap();
+
+    // Ensure the private key is correctly formatted and converted
+    let signing_key = SigningKey::from_secret_scalar(private_key_felt);
+
+    let signer = LocalWallet::from(signing_key);
+
     let fact_registry_address =
-        FieldElement::from_hex_be(dotenv::var("FACT_REGISTRY_ADDRESS").unwrap().as_str()).unwrap();
+        Felt::from_hex_unchecked(dotenv::var("FACT_REGISTRY_ADDRESS").unwrap().as_str());
     let l1_headers_store_address =
-        FieldElement::from_hex_be(dotenv::var("L1_HEADERS_STORE_ADDRESS").unwrap().as_str())
-            .unwrap();
+        Felt::from_hex_unchecked(dotenv::var("L1_HEADERS_STORE_ADDRESS").unwrap().as_str());
 
     let starknet_rpc = dotenv::var("STARKNET_RPC").unwrap();
 
@@ -233,12 +237,15 @@ pub async fn get_storage_value(
     };
     if !is_account_proved {
         tracing::info!("Account is not verified yet, verifying on Starknet");
+        println!("{}", serde_json::to_string_pretty(&eth_proof).unwrap());
         match fact_registry_contract
             .prove_account(input.block_number, eth_proof.account_proof.clone())
             .await
         {
             Ok(res) => {
+                println!("res: {:?}", res);
                 let value = res.transaction_hash.to_string();
+                println!("value: {}", value);
                 match U256::from_dec_str(&value) {
                     Ok(res) => {
                         if res == U256::from(1) {
