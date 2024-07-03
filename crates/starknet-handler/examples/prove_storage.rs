@@ -55,9 +55,9 @@ async fn main() {
     let owner_account = dotenv::var("KATANA_8_ADDRESS").unwrap();
     let owner_account = Felt::from_str(owner_account.as_str()).unwrap();
 
-    let signer = LocalWallet::from(SigningKey::from_secret_scalar(
-        Felt::from_hex_unchecked(&private_key)
-    ));
+    let signer = LocalWallet::from(SigningKey::from_secret_scalar(Felt::from_hex_unchecked(
+        &private_key,
+    )));
 
     let fact_registry =
         Felt::from_hex_unchecked(dotenv::var("FACT_REGISTRY_ADDRESS").unwrap().as_str());

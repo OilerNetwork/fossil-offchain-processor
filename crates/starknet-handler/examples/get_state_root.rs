@@ -13,11 +13,12 @@ async fn main() {
     let owner_account = var("KATANA_8_ADDRESS").unwrap();
     let owner_account = Felt::from_hex_unchecked(owner_account.as_str());
 
-    let signer = LocalWallet::from(SigningKey::from_secret_scalar(
-        Felt::from_hex_unchecked(&private_key),
-    ));
+    let signer = LocalWallet::from(SigningKey::from_secret_scalar(Felt::from_hex_unchecked(
+        &private_key,
+    )));
 
-    let l1_headers_store = Felt::from_hex_unchecked(var("L1_HEADERS_STORE_ADDRESS").unwrap().as_str());
+    let l1_headers_store =
+        Felt::from_hex_unchecked(var("L1_HEADERS_STORE_ADDRESS").unwrap().as_str());
 
     // NOTE: change block number once its stored
     let block_number = 20;

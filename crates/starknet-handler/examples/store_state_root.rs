@@ -88,4 +88,3 @@ async fn main() {
         Err(e) => eprintln!("Failed to send transaction: {:?}", e),
     }
 }
-
