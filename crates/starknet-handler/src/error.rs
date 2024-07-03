@@ -26,4 +26,3 @@ pub enum FieldElementParseError {
     #[error("FromByteSlice error: {0}")]
     FromByteSliceError(#[from] FromBytesSliceError),
 }
-

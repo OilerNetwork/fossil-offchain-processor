@@ -205,4 +205,3 @@ impl FactRegistry {
             .map_err(HandlerError::AccountError)
     }
 }
-

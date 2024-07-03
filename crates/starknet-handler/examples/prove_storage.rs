@@ -6,7 +6,7 @@ use proof_generator::service::calculate_proof::calculate_proof;
 use serde_json::json;
 
 use starknet::{
-    core::types::FieldElement,
+    core::types::Felt,
     signers::{LocalWallet, SigningKey},
 };
 use starknet_handler::fact_registry::fact_registry::FactRegistry;
@@ -53,14 +53,14 @@ async fn main() {
     let private_key = dotenv::var("KATANA_8_PRIVATE_KEY").unwrap();
 
     let owner_account = dotenv::var("KATANA_8_ADDRESS").unwrap();
-    let owner_account = FieldElement::from_str(owner_account.as_str()).unwrap();
+    let owner_account = Felt::from_str(owner_account.as_str()).unwrap();
 
     let signer = LocalWallet::from(SigningKey::from_secret_scalar(
-        FieldElement::from_hex_be(&private_key).unwrap(),
+        Felt::from_hex_unchecked(&private_key)
     ));
 
     let fact_registry =
-        FieldElement::from_hex_be(dotenv::var("FACT_REGISTRY_ADDRESS").unwrap().as_str()).unwrap();
+        Felt::from_hex_unchecked(dotenv::var("FACT_REGISTRY_ADDRESS").unwrap().as_str());
 
     let contract = FactRegistry::new(
         "http://localhost:5050",

@@ -3466,6 +3466,7 @@ dependencies = [
  "byteorder",
  "dotenv",
  "eyre",
+ "hex",
  "primitive-types",
  "proof-generator",
  "serde",

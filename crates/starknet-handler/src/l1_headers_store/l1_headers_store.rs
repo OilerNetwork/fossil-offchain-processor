@@ -111,4 +111,3 @@ impl L1HeadersStore {
             .map_err(HandlerError::AccountError)
     }
 }
-
