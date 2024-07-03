@@ -3,6 +3,7 @@ use serde::{de, Deserialize, Deserializer};
 
 use super::data::Data;
 
+#[derive(Deserialize)]
 pub struct HexString {
     pub hex: String,
 }
