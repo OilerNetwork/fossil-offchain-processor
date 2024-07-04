@@ -17,8 +17,6 @@
 //! ```toml
 //! [dependencies]
 //! starknet_handler = "0.1.0"
-//! dotenv = "0.15.0"
-//! tokio = { version = "1", features = ["full"] }
 //! ```
 //!
 //! ## Example

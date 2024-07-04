@@ -1,16 +1,40 @@
-use std::sync::Arc;
+//! Module for handling Ethereum transactions.
+//!
+//! This module provides functionalities to sign, send, and simulate Ethereum transactions,
+//! as well as to wait for transaction receipts.
 
+use super::error::TransactionError;
 use ethers::providers::{JsonRpcClient, Middleware, PendingTransaction};
 use ethers::signers::{LocalWallet, WalletError};
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{
     BlockId, BlockNumber, Bytes, Eip1559TransactionRequest, TransactionReceipt, H160,
 };
+use std::sync::Arc;
 use tracing::instrument;
 
-use super::error::TransactionError;
-
-//Signs and sends transaction, bumps gas if necessary
+/// Signs and sends a transaction, and bumps gas if necessary.
+///
+/// # Arguments
+///
+/// * `tx` - The typed transaction to be signed and sent.
+/// * `wallet_key` - The wallet key used for signing the transaction.
+/// * `middleware` - The middleware to interact with the Ethereum network.
+///
+/// # Returns
+///
+/// A result containing the transaction receipt on success, or a `TransactionError` on failure.
+///
+/// # Errors
+///
+/// This function returns an error if the transaction signing or sending fails,
+/// or if there are insufficient funds in the wallet.
+///
+/// # Example
+///
+/// ```
+/// let receipt = sign_and_send_transaction(tx, &wallet_key, middleware).await?;
+/// ```
 #[instrument(skip(wallet_key, middleware))]
 pub async fn sign_and_send_transaction<M: Middleware>(
     tx: TypedTransaction,
@@ -38,6 +62,30 @@ pub async fn sign_and_send_transaction<M: Middleware>(
     }
 }
 
+/// Fills and simulates an EIP-1559 transaction.
+///
+/// # Arguments
+///
+/// * `calldata` - The calldata for the transaction.
+/// * `to` - The recipient address of the transaction.
+/// * `from` - The sender address of the transaction.
+/// * `chain_id` - The chain ID of the Ethereum network.
+/// * `middleware` - The middleware to interact with the Ethereum network.
+/// * `value` - The value to be sent in the transaction.
+///
+/// # Returns
+///
+/// A result containing the filled and simulated typed transaction on success, or a `TransactionError` on failure.
+///
+/// # Errors
+///
+/// This function returns an error if gas estimation, transaction filling, or simulation fails.
+///
+/// # Example
+///
+/// ```
+/// let tx = fill_and_simulate_eip1559_transaction(calldata, to, from, chain_id, middleware, value).await?;
+/// ```
 #[instrument(skip(middleware))]
 pub async fn fill_and_simulate_eip1559_transaction<M: Middleware>(
     calldata: Bytes,
@@ -94,6 +142,25 @@ pub async fn fill_and_simulate_eip1559_transaction<M: Middleware>(
     Ok(tx)
 }
 
+/// Waits for a transaction receipt.
+///
+/// # Arguments
+///
+/// * `pending_tx` - The pending transaction for which to wait for the receipt.
+///
+/// # Returns
+///
+/// A result containing the transaction receipt on success, or a `TransactionError` on failure.
+///
+/// # Errors
+///
+/// This function returns an error if the transaction receipt is not found or the provider fails.
+///
+/// # Example
+///
+/// ```
+/// let receipt = wait_for_tx_receipt(pending_tx).await?;
+/// ```
 #[instrument]
 pub async fn wait_for_tx_receipt<'a, M: Middleware, P: JsonRpcClient>(
     pending_tx: PendingTransaction<'a, P>,
@@ -108,6 +175,26 @@ pub async fn wait_for_tx_receipt<'a, M: Middleware, P: JsonRpcClient>(
     return Err(TransactionError::TxReceiptNotFound(tx_hash));
 }
 
+/// Signs a raw transaction.
+///
+/// # Arguments
+///
+/// * `tx` - The typed transaction to be signed.
+/// * `wallet_key` - The wallet key used for signing the transaction.
+///
+/// # Returns
+///
+/// A result containing the signed transaction bytes on success, or a `WalletError` on failure.
+///
+/// # Errors
+///
+/// This function returns an error if the transaction signing fails.
+///
+/// # Example
+///
+/// ```
+/// let signed_tx = raw_signed_transaction(tx, &wallet_key)?;
+/// ```
 pub fn raw_signed_transaction(
     tx: TypedTransaction,
     wallet_key: &LocalWallet,
