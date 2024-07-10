@@ -45,7 +45,7 @@ impl L1HeadersStore {
         state_root: String,
     ) -> Result<InvokeTransactionResult, HandlerError> {
         let (state_root_high, state_root_low) = get_high_and_low(state_root);
-    
+
         let entry_point_selector = get_selector_from_name("store_state_root")?;
 
         // Convert block_number to Felt directly
@@ -59,7 +59,6 @@ impl L1HeadersStore {
 
         self.invoke(entry_point_selector, calldata).await
     }
-    
 
     pub async fn get_state_root(&self, block_number: u64) -> Result<Vec<Felt>, HandlerError> {
         let entry_point_selector = get_selector_from_name("get_state_root")?;

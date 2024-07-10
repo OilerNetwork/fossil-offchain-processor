@@ -131,6 +131,7 @@ pub async fn get_storage_value(
                 let api_input = BlockNumber {
                     block_number: HexString::new(&format!("0x{:x}", input.block_number)),
                 };
+
                 let response =
                     call_eth_blocks_api(State(app_state.client.clone()), Json(api_input))
                         .await
@@ -161,7 +162,10 @@ pub async fn get_storage_value(
                 println!("bytes: {:?}", bytes);
 
                 if bytes.len() < 68 {
-                    tracing::error!("Response body too short, expected at least 68 bytes, got {}", bytes.len());
+                    tracing::error!(
+                        "Response body too short, expected at least 68 bytes, got {}",
+                        bytes.len()
+                    );
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json("Response body too short"),
@@ -249,6 +253,8 @@ pub async fn get_storage_value(
         let response = call_mev_blocker_api(State(app_state.client.clone()), Json(api_input))
             .await
             .into_response();
+
+        println!("response: {:?}", response);
 
         let bytes = match axum::body::to_bytes(response.into_body(), usize::MAX).await {
             Ok(bytes) => bytes,

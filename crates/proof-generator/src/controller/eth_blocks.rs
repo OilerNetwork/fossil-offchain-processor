@@ -6,6 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+
 use reqwest::Client;
 
 use crate::model::eth_rpc::{

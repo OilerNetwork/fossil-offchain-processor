@@ -10,7 +10,8 @@ use starknet::{
     providers::{
         jsonrpc::{HttpTransport, JsonRpcClient},
         Provider, Url,
-    }, signers::LocalWallet
+    },
+    signers::LocalWallet,
 };
 
 use crate::{

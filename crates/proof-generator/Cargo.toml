@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ethers = { version = "2", default-features = false, features = ["rustls","celo"] }
 axum = "0.7.5"
 hex = "0.4"
 serde = { version = "1.0", features = ["derive"] }
