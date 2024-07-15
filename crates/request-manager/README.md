@@ -1,12 +1,11 @@
-# eth-dispatcher
+# request_manager
 
 ## Usage Example
 
-The example to use the library can be found in the `examples` folder
-
 ```bash
 
-cargo run --example relayer
+cargo build --release
+cargo run --release
 
 ```
 
@@ -18,10 +17,10 @@ cargo run --example relayer
 ## Build the Docker Image
 Run the following command to build the Docker image:
 ```bash
-docker build -t eth_dispatcher .
+docker build -t request_manager -f Dockerfile.request-manager .
 ```
 ## Run the Docker Container
 Run the Docker container with the following command, passing the .env environment variable:
 ```bash
-docker run --env-file .env eth_dispatcher
+docker run --env-file .env request_manager
 ```

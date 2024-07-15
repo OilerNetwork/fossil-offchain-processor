@@ -8,6 +8,22 @@ cargo run --release
 
 ```
 
+## Run the application using docker
+
+### Requirements
+- Docker 26.1.3
+
+### Build the Docker Image
+Run the following command to build the Docker image:
+```bash
+docker build -t proof_generator .
+```
+### Run the Docker Container
+Run the Docker container with the following command, passing the .env environment variable:
+```bash
+docker run --env-file .env proof_generator
+```
+
 ## APIs
 
 ```bash
