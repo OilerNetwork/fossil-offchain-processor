@@ -1,8 +1,7 @@
 [workspace]
 members = [
-    "crates/eth-dispatcher",
-    "crates/proof-generator",
-    "crates/request-manager",
-    "crates/starknet-handler",
+    "crates/server",
+    "crates/db-access",
+    "crates/mmr-accumulator",
 ]
 resolver = "2"
