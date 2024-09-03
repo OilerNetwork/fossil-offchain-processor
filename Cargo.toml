@@ -3,5 +3,6 @@ members = [
     "crates/server",
     "crates/db-access",
     "crates/mmr-accumulator",
+    "crates/eth-block-rlp",
 ]
 resolver = "2"
