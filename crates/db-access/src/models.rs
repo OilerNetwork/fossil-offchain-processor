@@ -26,7 +26,6 @@ pub struct Transaction {
     pub chain_id: Option<String>,
 }
 
-
 pub struct BlockHeaderSubset {
     pub number: i64,
     pub base_fee_per_gas: Option<String>,
