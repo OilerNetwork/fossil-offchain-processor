@@ -1,6 +1,6 @@
 use sqlx::{types::BigDecimal, Error, PgPool};
 
-use crate::models::{BlockHeader, Transaction, BlockHeaderSubset};
+use crate::models::{BlockHeader, BlockHeaderSubset, Transaction};
 
 pub async fn get_transactions_by_block_number(
     pool: &PgPool,
