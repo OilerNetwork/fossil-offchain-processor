@@ -1,6 +1,6 @@
 use sqlx::{types::BigDecimal, Error, PgPool};
 
-use crate::models::{BlockHeader, Transaction};
+use crate::models::{BlockHeader, Transaction, BlockHeaderSubset};
 
 pub async fn get_transactions_by_block_number(
     pool: &PgPool,
@@ -20,12 +20,6 @@ pub async fn get_transactions_by_block_number(
     .await?;
 
     Ok(transactions)
-}
-
-#[derive(sqlx::FromRow, Debug)]
-pub struct BlockHeaderSubset {
-    pub number: i64,
-    pub base_fee_per_gas: Option<String>,
 }
 
 pub async fn get_base_fees_between_blocks(
