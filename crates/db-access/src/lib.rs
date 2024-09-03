@@ -1,5 +1,5 @@
 mod models;
-mod queries;
+pub mod queries;
 
 use dotenv::dotenv;
 use sqlx::postgres::PgPool;

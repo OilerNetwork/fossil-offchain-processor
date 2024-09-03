@@ -129,3 +129,31 @@ pub async fn get_twap_and_volatility(
 
     Ok((row.twap, row.volatility))
 }
+
+pub async fn get_block_by_number(
+    pool: &PgPool,
+    block_number: i64,
+) -> Result<Option<BlockHeader>, Error> {
+    let block = sqlx::query_as!(
+        BlockHeader,
+        r#"
+        SELECT 
+            block_hash, 
+            number, 
+            gas_limit, 
+            gas_used, 
+            base_fee_per_gas, 
+            nonce, 
+            transaction_root, 
+            receipts_root, 
+            state_root
+        FROM blockheaders
+        WHERE number = $1
+        "#,
+        block_number
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(block)
+}
