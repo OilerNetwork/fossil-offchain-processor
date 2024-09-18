@@ -1,11 +1,18 @@
 use axum::{http::StatusCode, Json};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
-pub struct JobRequest {
-    identifier: Vec<String>,
-    timestamp: u128,
-    params: Vec<String>,
+// timestamp ranges for each sub-job calculation 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PitchLakeJobRequestParams {
+    twap: (u64, u64),
+    volatility: (u64, u64),
+    reserve_price: (u64, u64),
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PitchLakeJobRequest {
+    identifiers: Vec<String>,
+    params: PitchLakeJobRequestParams,
 }
 
 // We can keep this as a simple "Hello, world!" for now
@@ -14,17 +21,10 @@ pub async fn root() -> &'static str {
     "Hello, world!"
 }
 
-pub async fn get_twap(Json(payload): Json<JobRequest>) -> (StatusCode, &'static str) {
-    (StatusCode::OK, "twap")
+pub async fn get_pricing_data(Json(payload): Json<PitchLakeJobRequest>) -> (StatusCode, &'static str) {
+    (StatusCode::OK, "pricing_data")
 }
 
-pub async fn get_volatility(Json(payload): Json<JobRequest>) -> (StatusCode, &'static str) {
-    (StatusCode::OK, "volatility")
-}
-
-pub async fn get_reserve_price(Json(payload): Json<JobRequest>) -> (StatusCode, &'static str) {
-    (StatusCode::OK, "reserve_price")
-}
 
 #[cfg(test)]
 mod tests {
