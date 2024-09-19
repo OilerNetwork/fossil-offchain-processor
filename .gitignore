@@ -2,4 +2,3 @@ target/
 
 **/.DS_Store
 .env
-.sqlx

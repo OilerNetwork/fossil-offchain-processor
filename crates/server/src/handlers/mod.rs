@@ -1,7 +1,7 @@
 use axum::{http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 
-// timestamp ranges for each sub-job calculation 
+// timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobRequestParams {
     twap: (u64, u64),
@@ -15,16 +15,31 @@ pub struct PitchLakeJobRequest {
     params: PitchLakeJobRequestParams,
 }
 
+// TODO: Placeholder for now, need to be more generic
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PitchLakeJobCallback {
+    job_id: String,
+    twap: u64,
+    volatility: u64,
+    reserve_price: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct JobResponse {
+    job_id: String,
+}
+
 // We can keep this as a simple "Hello, world!" for now
 // but its a good place to place a health check endpoint
 pub async fn root() -> &'static str {
     "Hello, world!"
 }
 
-pub async fn get_pricing_data(Json(payload): Json<PitchLakeJobRequest>) -> (StatusCode, &'static str) {
+pub async fn get_pricing_data(
+    Json(payload): Json<PitchLakeJobRequest>,
+) -> (StatusCode, &'static str) {
     (StatusCode::OK, "pricing_data")
 }
-
 
 #[cfg(test)]
 mod tests {

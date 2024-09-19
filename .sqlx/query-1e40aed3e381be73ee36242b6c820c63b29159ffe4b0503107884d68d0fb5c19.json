@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT number, base_fee_per_gas\n        FROM blockheaders\n        WHERE number BETWEEN $1 AND $2\n        ORDER BY number ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "base_fee_per_gas",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "1e40aed3e381be73ee36242b6c820c63b29159ffe4b0503107884d68d0fb5c19"
+}
