@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH twap AS (\n            SELECT AVG(CAST(base_fee_per_gas AS NUMERIC)) AS avg_base_fee\n            FROM blockheaders\n            WHERE number BETWEEN 12345 AND 14345\n        ),\n        volatility AS (\n            SELECT STDDEV(CAST(base_fee_per_gas AS NUMERIC)) AS base_fee_volatility\n            FROM blockheaders\n            WHERE number BETWEEN $1 AND $2\n        )\n        SELECT (avg_base_fee + base_fee_volatility) AS reserve_price\n        FROM twap, volatility\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reserve_price",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "fa4a27d3922d3d26020dc07170e1794c4a703f080131d90bf4f58f353ec4f158"
+}
