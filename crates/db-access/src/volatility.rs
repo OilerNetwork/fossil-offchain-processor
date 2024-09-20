@@ -30,7 +30,6 @@ pub async fn calculate_volatility(blocks: &[BlockHeaderSubset]) -> u128 {
             }
 
             // Calculate log return and add it to the returns vector
-
             returns.push((basefee_current / basefee_previous).ln());
         }
     }
