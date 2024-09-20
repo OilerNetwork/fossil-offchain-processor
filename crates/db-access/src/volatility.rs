@@ -1,14 +1,14 @@
 use crate::models::BlockHeaderSubset;
 
-fn hex_string_to_u128(hex_str: &String) -> u128 {
+fn hex_string_to_u128(hex_str: &String) -> f64 {
     // Remove the "0x" prefix if it exists
     let stripped = hex_str.trim_start_matches("0x");
 
-    // Return the hex string as a u128, panic if it fails
+    // Return the hex string as f64, panic if it fails
     if let Ok(value) = u128::from_str_radix(stripped, 16) {
-        return value;
+        return value as f64;
     } else {
-        panic!("Error converting hex string {:?} to u128", hex_str);
+        panic!("Error converting hex string {:?} to f64", hex_str);
     }
 }
 
@@ -20,22 +20,18 @@ pub async fn calculate_volatility(blocks: &[BlockHeaderSubset]) -> u128 {
         if let (Some(ref basefee_current), Some(ref basefee_previous)) =
             (&blocks[i].base_fee_per_gas, &blocks[i - 1].base_fee_per_gas)
         {
-            // Convert base fees from hex strings to u128s
-            let (basefee_current_wei, basefee_previous_wei) = (
-                hex_string_to_u128(&basefee_current),
-                hex_string_to_u128(&basefee_previous),
-            );
+            // Convert base fees from hex string to f64
+            let basefee_current = hex_string_to_u128(&basefee_current);
+            let basefee_previous = hex_string_to_u128(&basefee_previous);
 
             // If the previous base fee is zero, skip to the next iteration
-            if basefee_previous_wei == 0 {
+            if basefee_previous == 0.0 {
                 continue;
             }
 
             // Calculate log return and add it to the returns vector
-            let basefee_current_f64 = basefee_current_wei as f64;
-            let basefee_previous_f64 = basefee_previous_wei as f64;
 
-            returns.push((basefee_current_f64 / basefee_previous_f64).ln());
+            returns.push((basefee_current / basefee_previous).ln());
         }
     }
 
