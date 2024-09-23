@@ -1,5 +1,8 @@
 use axum::{http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
+use crate::reserve_price::calculate_reserve_price; // Import the function
+use anyhow::Error;
+use tokio::runtime::Runtime;
 
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
@@ -39,6 +42,17 @@ pub async fn get_pricing_data(
     Json(payload): Json<PitchLakeJobRequest>,
 ) -> (StatusCode, &'static str) {
     (StatusCode::OK, "pricing_data")
+}
+
+pub async fn get_reserve_price(
+    Json(payload): Json<PitchLakeJobRequest>,
+) -> (StatusCode, String) {
+    let (start_block, end_block) = payload.params.reserve_price;
+ 
+    match calculate_reserve_price(start_block as i64, end_block as i64).await {
+        Ok(reserve_price) => (StatusCode::OK, format!("Reserve price: {}", reserve_price)),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Error: {}", e)),
+    }
 }
 
 #[cfg(test)]
