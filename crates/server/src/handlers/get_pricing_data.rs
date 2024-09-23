@@ -5,7 +5,7 @@ use starknet_crypto::{poseidon_hash_single, Felt};
 use std::collections::HashMap;
 use tokio::{join, time::Instant};
 
-use crate::pricing_data::{twap::calculate_twap, volatility::calculate_volatility};
+use crate::pricing_data::{reserve_price::calculate_reserve_price, twap::calculate_twap, volatility::calculate_volatility};
 
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
@@ -56,6 +56,17 @@ pub struct JobResponse {
     job_id: String,
 }
 
+pub async fn get_reserve_price(
+    Json(payload): Json<PitchLakeJobRequest>,
+) -> (StatusCode, String) {
+    let (start_block, end_block) = payload.params.reserve_price;
+ 
+    match calculate_reserve_price(start_block as i64, end_block as i64).await {
+        Ok(reserve_price) => (StatusCode::OK, format!("Reserve price: {}", reserve_price)),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Error: {}", e)),
+    }
+}
+
 pub async fn get_pricing_data(
     State(db): State<DbConnection>,
     Json(payload): Json<PitchLakeJobRequest>,
@@ -104,11 +115,12 @@ pub async fn get_pricing_data(
 
         let twap_future = calculate_twap(twap_blockheaders);
         let volatility_future = calculate_volatility(volatility_blockheaders);
+        let reserve_price_future = calculate_reserve_price(reserve_price_blockheaders);
 
         let now = Instant::now();
         println!("Started processing...");
 
-        let futures_result = join!(twap_future, volatility_future);
+        let futures_result = join!(twap_future, volatility_future, reserve_price_future);
 
         let elapsed = now.elapsed();
         println!("Elapsed: {:.2?}", elapsed);
@@ -118,7 +130,7 @@ pub async fn get_pricing_data(
         let callback_url = payload.callback_url.clone();
 
         match futures_result {
-            (Ok(twap), Ok(volatility_result)) => {
+            (Ok(twap), Ok(volatility_result), Ok(reserve_price_result)) => {
                 // callback the result of the calculation to a given callback url.
                 let res = client
                     .post(callback_url.clone())
@@ -126,7 +138,7 @@ pub async fn get_pricing_data(
                         job_id: job_id.to_string(),
                         twap,
                         volatility: volatility_result,
-                        reserve_price: 0f64,
+                        reserve_price: reserve_price_result,
                     })
                     .send()
                     .await;
