@@ -9,6 +9,7 @@ pub struct BlockHeader {
     pub transaction_root: Option<String>,
     pub receipts_root: Option<String>,
     pub state_root: Option<String>,
+    pub timestamp: Option<i64>,
 }
 
 #[derive(Debug, sqlx::FromRow)]

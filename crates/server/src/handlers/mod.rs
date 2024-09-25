@@ -1,12 +1,19 @@
-use axum::{http::StatusCode, Json};
+use std::collections::HashMap;
+
+use axum::{extract::State, http::StatusCode, Json};
+use db_access::DbConnection;
 use serde::{Deserialize, Serialize};
+use twap::calculate_twap;
+
+pub mod twap;
 
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobRequestParams {
-    twap: (u64, u64),
-    volatility: (u64, u64),
-    reserve_price: (u64, u64),
+    twap: (i64, i64),
+    volatility: (i64, i64),
+    reserve_price: (i64, i64),
+    callback_url: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -19,9 +26,9 @@ pub struct PitchLakeJobRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobCallback {
     job_id: String,
-    twap: u64,
-    volatility: u64,
-    reserve_price: u64,
+    twap: HashMap<String, i64>,
+    volatility: i64,
+    reserve_price: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -32,13 +39,25 @@ pub struct JobResponse {
 // We can keep this as a simple "Hello, world!" for now
 // but its a good place to place a health check endpoint
 pub async fn root() -> &'static str {
-    "Hello, world!"
+    "OK"
 }
 
 pub async fn get_pricing_data(
+    State(db): State<DbConnection>,
     Json(payload): Json<PitchLakeJobRequest>,
-) -> (StatusCode, &'static str) {
-    (StatusCode::OK, "pricing_data")
+) -> (StatusCode, Json<JobResponse>) {
+    tokio::spawn(async move {
+        let twap = calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await;
+        println!("twap: {:?}", twap);
+    });
+
+    // TODO(cwk): save the jobid somewhere
+    (
+        StatusCode::OK,
+        Json(JobResponse {
+            job_id: "123".to_string(),
+        }),
+    )
 }
 
 #[cfg(test)]
@@ -56,6 +75,6 @@ mod tests {
         let response = server.get("/").await;
 
         assert_eq!(response.status_code(), StatusCode::OK);
-        assert_eq!(response.text(), "Hello, world!");
+        assert_eq!(response.text(), "OK");
     }
 }
