@@ -1,12 +1,16 @@
-use axum::{http::StatusCode, Json};
+use axum::{extract::State, http::StatusCode, Json};
+use db_access::DbConnection;
 use serde::{Deserialize, Serialize};
+use twap::calculate_twap;
+
+pub mod twap;
 
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobRequestParams {
-    twap: (u64, u64),
-    volatility: (u64, u64),
-    reserve_price: (u64, u64),
+    twap: (i64, i64),
+    volatility: (i64, i64),
+    reserve_price: (i64, i64),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -19,9 +23,9 @@ pub struct PitchLakeJobRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobCallback {
     job_id: String,
-    twap: u64,
-    volatility: u64,
-    reserve_price: u64,
+    twap: i64,
+    volatility: i64,
+    reserve_price: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -36,9 +40,19 @@ pub async fn root() -> &'static str {
 }
 
 pub async fn get_pricing_data(
+    State(db): State<DbConnection>,
     Json(payload): Json<PitchLakeJobRequest>,
-) -> (StatusCode, &'static str) {
-    (StatusCode::OK, "pricing_data")
+) -> (StatusCode, Json<JobResponse>) {
+    let twap = tokio::spawn(async move {
+        calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await
+    });
+
+    (
+        StatusCode::OK,
+        Json(JobResponse {
+            job_id: "123".to_string(),
+        }),
+    )
 }
 
 #[cfg(test)]
