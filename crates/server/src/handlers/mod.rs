@@ -1,4 +1,3 @@
-use core::hash;
 use std::collections::HashMap;
 
 use axum::{extract::State, http::StatusCode, Json};
@@ -51,7 +50,7 @@ pub async fn get_pricing_data(
         let twap = calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await;
         println!("twap: {:?}", twap);
     });
-    
+
     // TODO(cwk): save the jobid somewhere
     (
         StatusCode::OK,
@@ -76,6 +75,6 @@ mod tests {
         let response = server.get("/").await;
 
         assert_eq!(response.status_code(), StatusCode::OK);
-        assert_eq!(response.text(), "Hello, world!");
+        assert_eq!(response.text(), "OK");
     }
 }
