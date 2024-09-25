@@ -1,6 +1,4 @@
 use db_access::models::BlockHeader;
-use db_access::queries::get_base_fees_between_blocks;
-use db_access::DbConnection;
 
 use anyhow::{anyhow as err, Error};
 use chrono::prelude::*;
@@ -20,6 +18,7 @@ use statrs::distribution::Binomial;
 use std::f64::consts::PI;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct Period {
     starting_timestamp: i64,
     ending_timestamp: i64,
@@ -42,6 +41,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         base_fees.push(
             header
                 .base_fee_per_gas
+                .clone()
                 .ok_or_else(|| err!("No base fee in header"))?
                 .parse::<i64>()?,
         );
@@ -205,8 +205,8 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 
     let payoffs = final_prices_twap.mapv(|price| {
         let capped_price = (1.0 + cap_level) * strike;
-        let payoff = (price.min(capped_price) - strike).max(0.0);
-        payoff
+
+        (price.min(capped_price) - strike).max(0.0)
     });
 
     let average_payoff = payoffs.mean().unwrap_or(0.0);
@@ -361,7 +361,7 @@ fn simulate_prices(
             + sigma * dt.sqrt() * &current_n1
             + &current_j * (mu_j + sigma_j * &current_n2));
 
-        simulated_prices.slice_mut(s![i, ..]).assign(&new_prices);
+        simulated_prices.slice_mut(s![i, ..]).assign(new_prices);
     }
 
     Ok((simulated_prices, params.to_vec()))
@@ -387,7 +387,7 @@ fn simulate_prices(
 fn discover_trend(df: &DataFrame) -> Result<(FittedLinearRegression<f64>, Vec<f64>), Error> {
     let time_index: Vec<f64> = (0..df.height() as i64).map(|i| i as f64).collect();
 
-    let ones = Array::<f64, Ix1>::ones(df.height() as usize);
+    let ones = Array::<f64, Ix1>::ones(df.height());
     let x = stack![Axis(1), Array::from(time_index.clone()), ones];
 
     let y = Array1::from(
@@ -719,7 +719,7 @@ fn replace_timestamp_with_date(mut df: DataFrame) -> Result<DataFrame, Error> {
 /// * The 'date' column is missing or cannot be accessed.
 /// * The start or end dates cannot be calculated.
 /// * The DataFrame cannot be filtered or collected for any period.
-///
+#[allow(dead_code)]
 fn split_dataframe_into_periods(
     df: DataFrame,
     period_length_in_months: i32,
