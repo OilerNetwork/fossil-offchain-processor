@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT \n            block_hash, \n            number, \n            gas_limit, \n            gas_used, \n            base_fee_per_gas, \n            nonce, \n            transaction_root, \n            receipts_root, \n            state_root\n        FROM blockheaders\n        WHERE number = $1\n        ",
+  "query": "\n        SELECT \n            block_hash, \n            number, \n            gas_limit, \n            gas_used, \n            base_fee_per_gas, \n            nonce, \n            transaction_root, \n            receipts_root, \n            state_root,\n            CAST(timestamp AS int8) AS timestamp\n        FROM blockheaders\n        WHERE number = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -47,6 +47,11 @@
         "ordinal": 8,
         "name": "state_root",
         "type_info": "Bpchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "timestamp",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -63,8 +68,9 @@
       false,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "5ef908f935ec06a1912b09fd615dba5d5ad89a968a7f0996ddee2680cb84d671"
+  "hash": "3e8ac9fc3cbaade0dea73d806f52dc01641ba95099eed75370c96076fa7ed9fe"
 }

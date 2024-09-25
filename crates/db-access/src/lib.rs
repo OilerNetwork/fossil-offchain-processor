@@ -6,6 +6,7 @@ use sqlx::postgres::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 
+#[derive(Clone, Debug)]
 pub struct DbConnection {
     pub pool: PgPool,
 }

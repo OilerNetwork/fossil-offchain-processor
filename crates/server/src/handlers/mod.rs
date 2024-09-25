@@ -1,15 +1,20 @@
-use axum::{http::StatusCode, Json};
-use serde::{Deserialize, Serialize};
-use crate::reserve_price::calculate_reserve_price; // Import the function
-use anyhow::Error;
-use tokio::runtime::Runtime;
+use std::collections::HashMap;
 
+use axum::{extract::State, http::StatusCode, Json};
+use db_access::DbConnection;
+use serde::{Deserialize, Serialize};
+use twap::calculate_twap;
+use reserve_price::calculate_reserve_price;
+
+pub mod twap;
+pub mod reserve_price;
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobRequestParams {
-    twap: (u64, u64),
-    volatility: (u64, u64),
-    reserve_price: (u64, u64),
+    twap: (i64, i64),
+    volatility: (i64, i64),
+    reserve_price: (i64, i64),
+    callback_url: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -22,9 +27,9 @@ pub struct PitchLakeJobRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobCallback {
     job_id: String,
-    twap: u64,
-    volatility: u64,
-    reserve_price: u64,
+    twap: HashMap<String, i64>,
+    volatility: i64,
+    reserve_price: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -35,24 +40,47 @@ pub struct JobResponse {
 // We can keep this as a simple "Hello, world!" for now
 // but its a good place to place a health check endpoint
 pub async fn root() -> &'static str {
-    "Hello, world!"
+    "OK"
 }
 
 pub async fn get_pricing_data(
+    State(db): State<DbConnection>,
     Json(payload): Json<PitchLakeJobRequest>,
-) -> (StatusCode, &'static str) {
-    (StatusCode::OK, "pricing_data")
+) -> (StatusCode, Json<JobResponse>) {
+    tokio::spawn(async move {
+        let twap = calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await;
+        println!("twap: {:?}", twap);
+    });
+
+    // TODO(cwk): save the jobid somewhere
+    (
+        StatusCode::OK,
+        Json(JobResponse {
+            job_id: "123".to_string(),
+        }),
+    )
 }
 
 pub async fn get_reserve_price(
     Json(payload): Json<PitchLakeJobRequest>,
-) -> (StatusCode, String) {
-    let (start_block, end_block) = payload.params.reserve_price;
- 
-    match calculate_reserve_price(start_block as i64, end_block as i64).await {
-        Ok(reserve_price) => (StatusCode::OK, format!("Reserve price: {}", reserve_price)),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Error: {}", e)),
-    }
+) -> (StatusCode, Json<JobResponse>) {
+    let (start_timestamp, end_timestamp): (i64, i64) = payload.params.reserve_price;
+    println!("start_timestamp: {:?}, end_timestamp: {:?}", start_timestamp, end_timestamp);
+    let job_id = "456";
+
+    tokio::spawn(async move {
+        match calculate_reserve_price(start_timestamp, end_timestamp).await {
+            Ok(reserve_price) => println!("Job {}: Reserve price calculated: {:?}", job_id, reserve_price),
+            Err(e) => eprintln!("Job {}: Failed to calculate reserve price: {:?}", job_id, e),
+        }
+    });
+
+    (
+        StatusCode::ACCEPTED,
+        Json(JobResponse {
+            job_id: job_id.to_string(),
+        }),
+    )
 }
 
 #[cfg(test)]
@@ -70,6 +98,6 @@ mod tests {
         let response = server.get("/").await;
 
         assert_eq!(response.status_code(), StatusCode::OK);
-        assert_eq!(response.text(), "Hello, world!");
+        assert_eq!(response.text(), "OK");
     }
 }

@@ -1,10 +1,8 @@
 use db_access::DbConnection;
-use db_access::queries::get_base_fees_between_blocks;
-use db_access::models::BlockHeaderSubset;
+use db_access::queries::get_block_headers_by_time_range;
 
 use anyhow::{anyhow as err, Error};
 use chrono::prelude::*;
-use chrono::Months;
 use linfa::prelude::*;
 use linfa::traits::Fit;
 use linfa_linear::{LinearRegression, FittedLinearRegression};
@@ -19,30 +17,24 @@ use rand::prelude::*;
 use statrs::distribution::Binomial;
 use optimization::{Func, GradientDescent, Minimizer, NumericalDifferentiation};
 
-#[derive(Debug)]
-struct Period {
-    starting_timestamp: i64,
-    ending_timestamp: i64,
-    reserve_price: f64,
-    strike_price: f64,
-    cap_level: i64,
+fn hex_to_i64(hex: String) -> i64 {
+    i64::from_str_radix(hex.as_str().trim_start_matches("0x"), 16).unwrap()
 }
 
-pub async fn calculate_reserve_price(start_block: i64, end_block: i64) -> Result<f64, Error> {
+pub async fn calculate_reserve_price(start_timestamp: i64, end_timestamp: i64) -> Result<f64, Error> {
     // Initialize the database connection
     let db = DbConnection::new().await?;
 
     // Assign the result of the query to a variable
-    let block_headers: Vec<BlockHeaderSubset> = get_base_fees_between_blocks(&db.pool, start_block, end_block).await?;
-    println!("block_headers: {:?}", block_headers);
+    let block_headers = get_block_headers_by_time_range(&db.pool, start_timestamp, end_timestamp).await?;
 
     // Create a DataFrame from block_headers
     let mut timestamps: Vec<i64> = Vec::new();
     let mut base_fees: Vec<i64> = Vec::new();
 
     for header in block_headers {
-        timestamps.push(header.timestamp.ok_or_else(|| err!("No timestamp in header"))?.parse::<i64>()?);
-        base_fees.push(header.base_fee_per_gas.ok_or_else(|| err!("No base fee in header"))?.parse::<i64>()?);
+        timestamps.push(header.timestamp.ok_or_else(|| err!("No timestamp in header"))?);
+        base_fees.push(hex_to_i64(header.base_fee_per_gas.ok_or_else(|| err!("No base fee in header"))?));
     }
 
     let mut df = DataFrame::new(vec![
@@ -50,11 +42,11 @@ pub async fn calculate_reserve_price(start_block: i64, end_block: i64) -> Result
         Series::new("base_fee", base_fees),
     ])?;
 
-    println!("df: {:?}", df);
-
     df = replace_timestamp_with_date(df)?;
     df = group_by_1h_intervals(df)?;
     df = add_twap_7d(df)?;
+
+    println!("df: {:?}", df);
 
     let twap_7d_series = df.column("TWAP_7d")?;
     let strike = twap_7d_series
@@ -207,19 +199,9 @@ pub async fn calculate_reserve_price(start_block: i64, end_block: i64) -> Result
     });
 
     let average_payoff = payoffs.mean().unwrap_or(0.0);
-    let present_value = f64::exp(-risk_free_rate) * average_payoff;
+    let reserve_price = f64::exp(-risk_free_rate) * average_payoff;
 
-    let result = Period {
-        starting_timestamp: df.column("date")?.datetime()?.get(0).unwrap(),
-        ending_timestamp: df.column("date")?.datetime()?.get(df.height() - 1).unwrap(),
-        reserve_price: present_value,
-        strike_price: strike,
-        cap_level: (cap_level * 10000.0) as i64, // in basis points
-    };
-
-    println!("Reserve price: {:?}", result);
-
-    Ok(result.reserve_price)
+    Ok(reserve_price)
 }
 
 /// Removes seasonality from the detrended log base fee and adds relevant columns to the DataFrame.
@@ -616,8 +598,7 @@ fn add_twap_7d(df: DataFrame) -> Result<DataFrame, Error> {
 /// Groups the DataFrame by 1-hour intervals and aggregates specified columns.
 ///
 /// This function takes a DataFrame and groups it by 1-hour intervals based on the 'date' column.
-/// It then calculates the mean values for 'base_fee', 'gas_limit', 'gas_used', and 'number' columns
-/// within each interval.
+/// It then calculates the mean values for 'base_fee' within each interval.
 ///
 /// # Arguments
 ///
@@ -648,9 +629,6 @@ fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame, Error> {
         )
         .agg([
             col("base_fee").mean(),
-            col("gas_limit").mean(),
-            col("gas_used").mean(),
-            col("number").mean(),
         ])
         .collect()?;
 
@@ -691,70 +669,5 @@ fn replace_timestamp_with_date(mut df: DataFrame) -> Result<DataFrame, Error> {
     df.rename("timestamp", "date")?;
     
     Ok(df)
-}
-
-/// Splits a DataFrame into overlapping periods of a specified length.
-///
-/// This function takes a DataFrame and splits it into multiple overlapping periods,
-/// each with a duration specified by `period_length_in_months`.
-///
-/// # Arguments
-///
-/// * `df` - The input DataFrame to be split. It must contain a 'date' column.
-/// * `period_length_in_months` - The length of each period in months.
-///
-/// # Returns
-///
-/// A `Result` containing a vector of DataFrames, each representing a period,
-/// or an `Error` if the operation fails.
-///
-/// # Errors
-///
-/// This function will return an error if:
-/// * The 'date' column is missing or cannot be accessed.
-/// * The start or end dates cannot be calculated.
-/// * The DataFrame cannot be filtered or collected for any period.
-/// 
-fn split_dataframe_into_periods(df: DataFrame, period_length_in_months: i32) -> Result<Vec<DataFrame>, Error> {
-    let mut period_dataframes: Vec<DataFrame> = Vec::new();
-
-    let start_date_value = df
-        .column("date")?
-        .datetime()?
-        .get(0)
-        .ok_or_else(|| err!("No row 0 in the date column"))?;
-    let start_date = DateTime::from_timestamp(start_date_value / 1000, 0)
-        .ok_or_else(|| err!("Can't calculate the start date"))?;
-
-    let end_date_row = df.height() - 1;
-    let end_date_value = df
-        .column("date")?
-        .datetime()?
-        .get(end_date_row)
-        .ok_or_else(|| err!("No row {end_date_row} in the date column"))?;
-    let end_date = DateTime::from_timestamp(end_date_value / 1000, 0)
-        .ok_or_else(|| err!("Can't calculate the end date"))?;
-
-    let num_months = (end_date.year() - start_date.year()) * 12 + i32::try_from(end_date.month())?
-        - i32::try_from(start_date.month())?
-        + 1;
-
-    for i in 0..num_months - (period_length_in_months - 1) {
-        let period_start = start_date + Months::new(i as u32);
-        let period_end = period_start + Months::new(period_length_in_months as u32);
-        let period_df = df
-            .clone()
-            .lazy()
-            .filter(
-                col("date")
-                    .gt_eq(lit(period_start.naive_utc()))
-                    .and(col("date").lt(lit(period_end.naive_utc()))),
-            )
-            .collect()?;
-
-        period_dataframes.push(period_df);
-    }
-
-    Ok(period_dataframes)
 }
 
