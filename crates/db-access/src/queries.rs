@@ -177,9 +177,9 @@ pub async fn get_block_headers_by_time_range(
             transaction_root, 
             receipts_root, 
             state_root,
-            CAST(timestamp AS int8) AS timestamp
+            timestamp
         FROM blockheaders
-        WHERE CAST(timestamp AS int8) BETWEEN $1 AND $2
+        WHERE timestamp BETWEEN $1 AND $2
         ORDER BY number ASC
         "#,
         start_timestamp,

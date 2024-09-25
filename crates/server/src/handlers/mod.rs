@@ -1,3 +1,6 @@
+use core::hash;
+use std::collections::HashMap;
+
 use axum::{extract::State, http::StatusCode, Json};
 use db_access::DbConnection;
 use serde::{Deserialize, Serialize};
@@ -11,6 +14,7 @@ pub struct PitchLakeJobRequestParams {
     twap: (i64, i64),
     volatility: (i64, i64),
     reserve_price: (i64, i64),
+    callback_url: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -23,7 +27,7 @@ pub struct PitchLakeJobRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobCallback {
     job_id: String,
-    twap: i64,
+    twap: HashMap<String, i64>,
     volatility: i64,
     reserve_price: i64,
 }
@@ -36,17 +40,19 @@ pub struct JobResponse {
 // We can keep this as a simple "Hello, world!" for now
 // but its a good place to place a health check endpoint
 pub async fn root() -> &'static str {
-    "Hello, world!"
+    "OK"
 }
 
 pub async fn get_pricing_data(
     State(db): State<DbConnection>,
     Json(payload): Json<PitchLakeJobRequest>,
 ) -> (StatusCode, Json<JobResponse>) {
-    let twap = tokio::spawn(async move {
-        calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await
+    tokio::spawn(async move {
+        let twap = calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await;
+        println!("twap: {:?}", twap);
     });
-
+    
+    // TODO(cwk): save the jobid somewhere
     (
         StatusCode::OK,
         Json(JobResponse {
