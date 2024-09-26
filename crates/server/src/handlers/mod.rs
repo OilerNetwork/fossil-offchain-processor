@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use axum::{extract::State, http::StatusCode, Json};
 use db_access::DbConnection;
 use serde::{Deserialize, Serialize};
+use starknet_crypto::{poseidon_hash_single, Felt};
 use twap::calculate_twap;
 
 pub mod twap;
@@ -46,16 +47,20 @@ pub async fn get_pricing_data(
     State(db): State<DbConnection>,
     Json(payload): Json<PitchLakeJobRequest>,
 ) -> (StatusCode, Json<JobResponse>) {
+    let job_id = poseidon_hash_single(Felt::from_bytes_be_slice(
+        payload.identifiers.join("").as_bytes(),
+    ));
+    // TODO(cwk): save the jobid somewhere
+
     tokio::spawn(async move {
         let twap = calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await;
         println!("twap: {:?}", twap);
     });
 
-    // TODO(cwk): save the jobid somewhere
     (
         StatusCode::OK,
         Json(JobResponse {
-            job_id: "123".to_string(),
+            job_id: job_id.to_string(),
         }),
     )
 }
