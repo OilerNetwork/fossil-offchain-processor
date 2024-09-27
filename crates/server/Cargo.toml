@@ -19,3 +19,8 @@ starknet-crypto = "0.7.2"
 
 [dev-dependencies]
 axum-test = "15.7.1"
+
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
