@@ -66,6 +66,14 @@ pub async fn get_reserve_price(
 ) -> (StatusCode, Json<JobResponse>) {
     let (start_timestamp, end_timestamp): (i64, i64) = payload.params.reserve_price;
     println!("start_timestamp: {:?}, end_timestamp: {:?}", start_timestamp, end_timestamp);
+    let date_start = chrono::DateTime::<chrono::Utc>::from_timestamp(start_timestamp, 0)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+        .unwrap_or_else(|| "Invalid start timestamp".to_string());
+    let date_end = chrono::DateTime::<chrono::Utc>::from_timestamp(end_timestamp, 0)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+        .unwrap_or_else(|| "Invalid end timestamp".to_string());
+    println!("Date start: {}", date_start);
+    println!("Date end: {}", date_end);
     let job_id = "456";
 
     tokio::spawn(async move {

@@ -46,8 +46,6 @@ pub async fn calculate_reserve_price(start_timestamp: i64, end_timestamp: i64) -
     df = group_by_1h_intervals(df)?;
     df = add_twap_7d(df)?;
 
-    println!("df: {:?}", df);
-
     let twap_7d_series = df.column("TWAP_7d")?;
     let strike = twap_7d_series
         .f64()?
