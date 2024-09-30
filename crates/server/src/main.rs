@@ -1,5 +1,8 @@
 use anyhow::Result;
-use axum::{routing::get, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use db_access::DbConnection;
 use server::handlers;
 
@@ -9,7 +12,7 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/", get(handlers::root))
-        .route("/pricing_data", get(handlers::get_pricing_data))
+        .route("/pricing_data", post(handlers::get_pricing_data))
         .with_state(db);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

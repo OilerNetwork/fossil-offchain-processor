@@ -1,4 +1,4 @@
-mod models;
+pub mod models;
 pub mod queries;
 
 use dotenv::dotenv;

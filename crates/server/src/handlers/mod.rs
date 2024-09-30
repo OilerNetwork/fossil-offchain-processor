@@ -1,12 +1,15 @@
-use std::collections::HashMap;
-
 use axum::{extract::State, http::StatusCode, Json};
 use db_access::DbConnection;
 use serde::{Deserialize, Serialize};
 use starknet_crypto::{poseidon_hash_single, Felt};
-use twap::calculate_twap;
+use std::collections::HashMap;
 
-pub mod twap;
+use twap::calculate_twap;
+use volatility::calculate_volatility;
+
+mod twap;
+mod utils;
+mod volatility;
 
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
@@ -37,8 +40,6 @@ pub struct JobResponse {
     job_id: String,
 }
 
-// We can keep this as a simple "Hello, world!" for now
-// but its a good place to place a health check endpoint
 pub async fn root() -> &'static str {
     "OK"
 }
@@ -54,7 +55,14 @@ pub async fn get_pricing_data(
 
     tokio::spawn(async move {
         let twap = calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await;
+        let volatility_result: Result<u128, anyhow::Error> = calculate_volatility(
+            &db,
+            payload.params.volatility.0,
+            payload.params.volatility.1,
+        )
+        .await;
         println!("twap: {:?}", twap);
+        println!("volatility_result: {:?}", volatility_result);
     });
 
     (
