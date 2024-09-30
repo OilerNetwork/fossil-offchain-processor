@@ -3,6 +3,7 @@ use db_access::DbConnection;
 use serde::{Deserialize, Serialize};
 use starknet_crypto::{poseidon_hash_single, Felt};
 use std::collections::HashMap;
+use tokio::join;
 
 use twap::calculate_twap;
 use volatility::calculate_volatility;
@@ -17,7 +18,7 @@ pub struct PitchLakeJobRequestParams {
     twap: (i64, i64),
     volatility: (i64, i64),
     reserve_price: (i64, i64),
-    callback_url: String,
+    callback_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -54,15 +55,18 @@ pub async fn get_pricing_data(
     // TODO(cwk): save the jobid somewhere
 
     tokio::spawn(async move {
-        let twap = calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await;
-        let volatility_result: Result<u128, anyhow::Error> = calculate_volatility(
+        let twap_future = calculate_twap(&db, payload.params.twap.0, payload.params.twap.1);
+        let volatility_future = calculate_volatility(
             &db,
             payload.params.volatility.0,
             payload.params.volatility.1,
-        )
-        .await;
-        println!("twap: {:?}", twap);
-        println!("volatility_result: {:?}", volatility_result);
+        );
+
+        let futures_result = join!(twap_future, volatility_future);
+
+        if let (Ok(twap), Ok(volatility_result)) = futures_result {
+            println!("{:?} {:?}", twap, volatility_result)
+        }
     });
 
     (
