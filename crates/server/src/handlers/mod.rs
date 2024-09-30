@@ -1,13 +1,17 @@
-use std::collections::HashMap;
-
 use axum::{extract::State, http::StatusCode, Json};
 use db_access::DbConnection;
 use serde::{Deserialize, Serialize};
 use twap::calculate_twap;
 use reserve_price::calculate_reserve_price;
+use volatility::calculate_volatility;
+use starknet_crypto::{poseidon_hash_single, Felt};
+use std::collections::HashMap;
 
-pub mod twap;
+mod twap;
+mod utils;
+mod volatility;
 pub mod reserve_price;
+
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobRequestParams {
@@ -37,8 +41,6 @@ pub struct JobResponse {
     job_id: String,
 }
 
-// We can keep this as a simple "Hello, world!" for now
-// but its a good place to place a health check endpoint
 pub async fn root() -> &'static str {
     "OK"
 }
@@ -47,44 +49,33 @@ pub async fn get_pricing_data(
     State(db): State<DbConnection>,
     Json(payload): Json<PitchLakeJobRequest>,
 ) -> (StatusCode, Json<JobResponse>) {
+    let job_id = poseidon_hash_single(Felt::from_bytes_be_slice(
+        payload.identifiers.join("").as_bytes(),
+    ));
+    // TODO(cwk): save the jobid somewhere
+
     tokio::spawn(async move {
         let twap = calculate_twap(&db, payload.params.twap.0, payload.params.twap.1).await;
+        let volatility_result: Result<u128, anyhow::Error> = calculate_volatility(
+            &db,
+            payload.params.volatility.0,
+            payload.params.volatility.1,
+        )
+        .await;
+
+        let reserve_price = calculate_reserve_price(
+            payload.params.reserve_price.0,
+            payload.params.reserve_price.1,
+        )
+        .await;
+
         println!("twap: {:?}", twap);
+        println!("volatility_result: {:?}", volatility_result);
+        println!("reserve_price: {:?}", reserve_price);
     });
 
-    // TODO(cwk): save the jobid somewhere
     (
         StatusCode::OK,
-        Json(JobResponse {
-            job_id: "123".to_string(),
-        }),
-    )
-}
-
-pub async fn get_reserve_price(
-    Json(payload): Json<PitchLakeJobRequest>,
-) -> (StatusCode, Json<JobResponse>) {
-    let (start_timestamp, end_timestamp): (i64, i64) = payload.params.reserve_price;
-    println!("start_timestamp: {:?}, end_timestamp: {:?}", start_timestamp, end_timestamp);
-    let date_start = chrono::DateTime::<chrono::Utc>::from_timestamp(start_timestamp, 0)
-        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-        .unwrap_or_else(|| "Invalid start timestamp".to_string());
-    let date_end = chrono::DateTime::<chrono::Utc>::from_timestamp(end_timestamp, 0)
-        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-        .unwrap_or_else(|| "Invalid end timestamp".to_string());
-    println!("Date start: {}", date_start);
-    println!("Date end: {}", date_end);
-    let job_id = "456";
-
-    tokio::spawn(async move {
-        match calculate_reserve_price(start_timestamp, end_timestamp).await {
-            Ok(reserve_price) => println!("Job {}: Reserve price calculated: {:?}", job_id, reserve_price),
-            Err(e) => eprintln!("Job {}: Failed to calculate reserve price: {:?}", job_id, e),
-        }
-    });
-
-    (
-        StatusCode::ACCEPTED,
         Json(JobResponse {
             job_id: job_id.to_string(),
         }),
