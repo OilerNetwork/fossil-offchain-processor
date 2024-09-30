@@ -1,6 +1,5 @@
 pub mod models;
 pub mod queries;
-pub mod volatility;
 
 use dotenv::dotenv;
 use sqlx::postgres::PgPool;

@@ -1,19 +1,17 @@
-use crate::models::BlockHeaderSubset;
+use anyhow::Error;
+use db_access::{queries::get_block_headers_by_time_range, DbConnection};
 
-fn hex_string_to_f64(hex_str: &String) -> f64 {
-    // Remove the "0x" prefix if it exists
-    let stripped = hex_str.trim_start_matches("0x");
-
-    // Return the hex string as f64, panic if it fails
-    if let Ok(value) = u128::from_str_radix(stripped, 16) {
-        return value as f64;
-    } else {
-        panic!("Error converting hex string {:?} to f64", hex_str);
-    }
-}
+use super::utils::hex_string_to_f64;
 
 // Returns volatility as BPS (i.e., 5001 means VOL=50.01%)
-pub async fn calculate_volatility(blocks: &[BlockHeaderSubset]) -> u128 {
+pub async fn calculate_volatility(
+    conn: &DbConnection,
+    start_timestamp: i64,
+    end_timestamp: i64,
+) -> Result<u128, Error> {
+    let blocks =
+        get_block_headers_by_time_range(&conn.pool, start_timestamp, end_timestamp).await?;
+
     // Calculate log returns
     let mut returns: Vec<f64> = Vec::new();
     for i in 1..blocks.len() {
@@ -21,8 +19,8 @@ pub async fn calculate_volatility(blocks: &[BlockHeaderSubset]) -> u128 {
             (&blocks[i].base_fee_per_gas, &blocks[i - 1].base_fee_per_gas)
         {
             // Convert base fees from hex string to f64
-            let basefee_current = hex_string_to_f64(&basefee_current);
-            let basefee_previous = hex_string_to_f64(&basefee_previous);
+            let basefee_current = hex_string_to_f64(basefee_current);
+            let basefee_previous = hex_string_to_f64(basefee_previous);
 
             // If the previous base fee is zero, skip to the next iteration
             if basefee_previous == 0.0 {
@@ -36,7 +34,7 @@ pub async fn calculate_volatility(blocks: &[BlockHeaderSubset]) -> u128 {
 
     // If there are no returns the volatility is 0
     if returns.is_empty() {
-        return 0;
+        return Ok(0);
     }
 
     // Calculate average returns
@@ -50,5 +48,5 @@ pub async fn calculate_volatility(blocks: &[BlockHeaderSubset]) -> u128 {
         / returns.len() as f64;
 
     // Square root the variance to get the volatility, translate to BPS (integer)
-    (variance.sqrt() * 10_000.0).round() as u128
+    Ok((variance.sqrt() * 10_000.0).round() as u128)
 }
