@@ -1,7 +1,6 @@
 use anyhow::Error;
 use chrono::prelude::*;
-use db_access::queries::get_block_headers_by_time_range;
-use db_access::DbConnection;
+use db_access::models::BlockHeader;
 use std::collections::HashMap;
 
 use super::utils::hex_string_to_f64;
@@ -12,14 +11,9 @@ pub struct AggregatedBaseFee {
     pub number: f64,
 }
 
-pub async fn calculate_twap(
-    conn: &DbConnection,
-    start_timestamp: i64,
-    end_timestamp: i64,
-) -> Result<HashMap<String, f64>, Error> {
-    let headers =
-        get_block_headers_by_time_range(&conn.pool, start_timestamp, end_timestamp).await?;
-
+/// Calculates the time weighted average price (TWAP) of the base fee.
+/// TODO: handle the unwraps properly, or at least propagate them upwards.
+pub async fn calculate_twap(headers: Vec<BlockHeader>) -> Result<HashMap<String, f64>, Error> {
     let mut hourly_fee_data_mapping: HashMap<String, AggregatedBaseFee> = HashMap::new();
 
     headers.iter().for_each(|header| {
