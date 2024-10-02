@@ -1,31 +1,38 @@
 use db_access::models::BlockHeader;
 
+use super::utils::hex_to_i64;
 use anyhow::{anyhow as err, Error};
 use chrono::prelude::*;
 use linfa::prelude::*;
 use linfa::traits::Fit;
-use linfa_linear::{LinearRegression, FittedLinearRegression};
+use linfa_linear::{FittedLinearRegression, LinearRegression};
 use ndarray::prelude::*;
 use ndarray::{stack, Array1, Array2, Axis};
 use ndarray_linalg::LeastSquaresSvd;
-use polars::prelude::*;
-use std::f64::consts::PI;
 use ndarray_rand::rand_distr::Normal;
-use rand_distr::Distribution;
-use rand::prelude::*;
-use statrs::distribution::Binomial;
 use optimization::{Func, GradientDescent, Minimizer, NumericalDifferentiation};
-use super::utils::hex_to_i64;
+use polars::prelude::*;
+use rand::prelude::*;
+use rand_distr::Distribution;
+use statrs::distribution::Binomial;
+use std::f64::consts::PI;
 
 pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64, Error> {
-
     // Create a DataFrame from block_headers
     let mut timestamps: Vec<i64> = Vec::new();
     let mut base_fees: Vec<i64> = Vec::new();
 
     for header in block_headers {
-        timestamps.push(header.timestamp.ok_or_else(|| err!("No timestamp in header"))?);
-        base_fees.push(hex_to_i64(header.base_fee_per_gas.ok_or_else(|| err!("No base fee in header"))?));
+        timestamps.push(
+            header
+                .timestamp
+                .ok_or_else(|| err!("No timestamp in header"))?,
+        );
+        base_fees.push(hex_to_i64(
+            header
+                .base_fee_per_gas
+                .ok_or_else(|| err!("No base fee in header"))?,
+        ));
     }
 
     let mut df = DataFrame::new(vec![
@@ -71,7 +78,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 
     // Running a linear regression to discover the trend, then removing that trend from the log base fee
     // ===============================================================================================
-    
+
     let (trend_model, trend_values) = discover_trend(&df)?;
     df.with_column(Series::new("trend", trend_values))?;
     df.with_column(Series::new(
@@ -82,7 +89,8 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
     // Seasonality modelling amd removal from the detrended log base fee
     // ===============================================================================================
 
-    let (de_seasonalised_detrended_log_base_fee, season_param) = remove_seasonality(&mut df, period_start_date_timestamp)?;
+    let (de_seasonalised_detrended_log_base_fee, season_param) =
+        remove_seasonality(&mut df, period_start_date_timestamp)?;
     df.with_column(Series::new(
         "de_seasonalized_detrended_log_base_fee",
         de_seasonalised_detrended_log_base_fee.clone().to_vec(),
@@ -94,7 +102,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
     let (de_seasonalized_detrended_simulated_prices, _params) = simulate_prices(
         de_seasonalised_detrended_log_base_fee.view(),
         n_periods,
-        num_paths
+        num_paths,
     )?;
 
     // Calculate the total hours in the period
@@ -167,7 +175,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         let trend = final_trend_value; // Use the final trend value for all future time points
         for j in 0..num_paths {
             simulated_log_prices[[i, j]] =
-            detrended_simulated_prices[[i, j]] + trend + stochastic_trend[[i, j]];
+                detrended_simulated_prices[[i, j]] + trend + stochastic_trend[[i, j]];
         }
     }
 
@@ -209,9 +217,12 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 /// A Result containing a tuple with two elements:
 /// * The de-seasonalized detrended log base fee as an Array1<f64>
 /// * The seasonal parameters as an Array1<f64>
-/// 
+///
 /// Returns an Error if any operation fails.
-fn remove_seasonality(df: &mut DataFrame, start_date_timestamp: i64) -> Result<(Array1<f64>, Array1<f64>), Error> {
+fn remove_seasonality(
+    df: &mut DataFrame,
+    start_date_timestamp: i64,
+) -> Result<(Array1<f64>, Array1<f64>), Error> {
     let start_date = DateTime::from_timestamp(start_date_timestamp / 1000, 0)
         .ok_or_else(|| err!("Can't calculate the start date"))?;
 
@@ -233,8 +244,7 @@ fn remove_seasonality(df: &mut DataFrame, start_date_timestamp: i64) -> Result<(
     let t_array = df["t"].f64()?.to_ndarray()?.to_owned();
     let c = season_matrix(t_array);
 
-    let detrended_log_base_fee_array =
-        df["detrended_log_base_fee"].f64()?.to_ndarray()?.to_owned();
+    let detrended_log_base_fee_array = df["detrended_log_base_fee"].f64()?.to_ndarray()?.to_owned();
     let season_param = c.least_squares(&detrended_log_base_fee_array)?.solution;
     let season = c.dot(&season_param);
     let de_seasonalised_detrended_log_base_fee =
@@ -268,7 +278,7 @@ fn remove_seasonality(df: &mut DataFrame, start_date_timestamp: i64) -> Result<(
 fn simulate_prices(
     de_seasonalised_detrended_log_base_fee: ArrayView1<f64>,
     n_periods: usize,
-    num_paths: usize
+    num_paths: usize,
 ) -> Result<(Array2<f64>, Vec<f64>), Error> {
     let dt = 1.0 / (365.0 * 24.0);
     let pt = de_seasonalised_detrended_log_base_fee
@@ -304,10 +314,13 @@ fn simulate_prices(
     };
 
     let mut simulated_prices = Array2::zeros((n_periods, num_paths));
-    simulated_prices.slice_mut(s![0, ..]).assign(&Array1::from_elem(
-        num_paths,
-        de_seasonalised_detrended_log_base_fee[de_seasonalised_detrended_log_base_fee.len() - 1],
-    ));
+    simulated_prices
+        .slice_mut(s![0, ..])
+        .assign(&Array1::from_elem(
+            num_paths,
+            de_seasonalised_detrended_log_base_fee
+                [de_seasonalised_detrended_log_base_fee.len() - 1],
+        ));
 
     let normal = Normal::new(0.0, 1.0).unwrap();
     let n1 = Array2::from_shape_fn((n_periods, num_paths), |_| normal.sample(&mut rng));
@@ -351,11 +364,7 @@ fn discover_trend(df: &DataFrame) -> Result<(FittedLinearRegression<f64>, Vec<f6
     let time_index: Vec<f64> = (0..df.height() as i64).map(|i| i as f64).collect();
 
     let ones = Array::<f64, Ix1>::ones(df.height() as usize);
-    let x = stack![
-        Axis(1),
-        Array::from(time_index.clone()),
-        ones
-    ];
+    let x = stack![Axis(1), Array::from(time_index.clone()), ones];
 
     let y = Array1::from(
         df["log_base_fee"]
@@ -387,7 +396,8 @@ fn compute_log_of_base_fees(df: &DataFrame) -> Result<Vec<f64>, Error> {
 
 // Removes rows with null values in the specified column and returns a new DataFrame
 fn drop_nulls(df: &DataFrame, column_name: &str) -> Result<DataFrame, Error> {
-    let df = df.clone()
+    let df = df
+        .clone()
         .lazy()
         .filter(col(column_name).is_not_null())
         .collect()?;
@@ -415,13 +425,6 @@ fn drop_nulls(df: &DataFrame, column_name: &str) -> Result<DataFrame, Error> {
 /// - Daily components: sin(2πt/24), cos(2πt/24), sin(4πt/24), cos(4πt/24), sin(8πt/24), cos(8πt/24)
 /// - Weekly components: sin(2πt/(24*7)), cos(2πt/(24*7)), sin(4πt/(24*7)), cos(4πt/(24*7)), sin(8πt/(24*7)), cos(8πt/(24*7))
 ///
-/// # Example
-///
-/// ```
-/// use ndarray::Array1;
-/// let time_array = Array1::linspace(0.0, 24.0, 25);
-/// let seasonal_matrix = season_matrix(time_array);
-/// ```
 fn season_matrix(t: Array1<f64>) -> Array2<f64> {
     let sin_2pi_24 = t.mapv(|time| (2.0 * PI * time / 24.0).sin());
     let cos_2pi_24 = t.mapv(|time| (2.0 * PI * time / 24.0).cos());
@@ -564,7 +567,7 @@ fn neg_log_likelihood(params: &[f64], pt: &Array1<f64>, pt_1: &Array1<f64>) -> f
 /// This function will return an error if:
 /// * The rolling mean calculation fails.
 /// * The final collection of the lazy DataFrame fails.
-/// 
+///
 fn add_twap_7d(df: DataFrame) -> Result<DataFrame, Error> {
     let df = df
         .lazy()
@@ -602,7 +605,7 @@ fn add_twap_7d(df: DataFrame) -> Result<DataFrame, Error> {
 /// This function will return an error if:
 /// * The grouping or aggregation operations fail.
 /// * The final collection of the lazy DataFrame fails.
-/// 
+///
 fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame, Error> {
     let df = df
         .lazy()
@@ -616,9 +619,7 @@ fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame, Error> {
                 ..Default::default()
             },
         )
-        .agg([
-            col("base_fee").mean(),
-        ])
+        .agg([col("base_fee").mean()])
         .collect()?;
 
     Ok(df)
@@ -645,7 +646,7 @@ fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame, Error> {
 /// * The 'timestamp' column is missing or cannot be accessed.
 /// * The conversion to milliseconds or casting to datetime fails.
 /// * The column replacement or renaming operations fail.
-/// 
+///
 fn replace_timestamp_with_date(mut df: DataFrame) -> Result<DataFrame, Error> {
     let dates = df
         .column("timestamp")?
@@ -656,7 +657,6 @@ fn replace_timestamp_with_date(mut df: DataFrame) -> Result<DataFrame, Error> {
 
     df.replace("timestamp", dates)?;
     df.rename("timestamp", "date")?;
-    
+
     Ok(df)
 }
-
