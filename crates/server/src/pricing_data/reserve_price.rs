@@ -1,6 +1,6 @@
 use db_access::models::BlockHeader;
 
-use super::utils::hex_to_i64;
+use super::utils::hex_string_to_f64;
 use anyhow::{anyhow as err, Error};
 use chrono::prelude::*;
 use linfa::prelude::*;
@@ -20,7 +20,7 @@ use std::f64::consts::PI;
 pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64, Error> {
     // Create a DataFrame from block_headers
     let mut timestamps: Vec<i64> = Vec::new();
-    let mut base_fees: Vec<i64> = Vec::new();
+    let mut base_fees: Vec<f64> = Vec::new();
 
     for header in block_headers {
         timestamps.push(
@@ -28,8 +28,8 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
                 .timestamp
                 .ok_or_else(|| err!("No timestamp in header"))?,
         );
-        base_fees.push(hex_to_i64(
-            header
+        base_fees.push(hex_string_to_f64(
+            &header
                 .base_fee_per_gas
                 .ok_or_else(|| err!("No base fee in header"))?,
         ));
