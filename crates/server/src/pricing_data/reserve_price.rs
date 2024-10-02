@@ -191,8 +191,8 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 
     let payoffs = final_prices_twap.mapv(|price| {
         let capped_price = (1.0 + cap_level) * strike;
-        let payoff = (price.min(capped_price) - strike).max(0.0);
-        payoff
+
+        (price.min(capped_price) - strike).max(0.0)
     });
 
     let average_payoff = payoffs.mean().unwrap_or(0.0);
@@ -337,7 +337,9 @@ fn simulate_prices(
             + sigma * dt.sqrt() * &current_n1
             + &current_j * (mu_j + sigma_j * &current_n2));
 
-        simulated_prices.slice_mut(s![i, ..]).assign(&new_prices);
+        simulated_prices
+            .slice_mut(s![i, ..])
+            .assign(&new_prices.clone());
     }
 
     Ok((simulated_prices, params.to_vec()))
@@ -363,7 +365,7 @@ fn simulate_prices(
 fn discover_trend(df: &DataFrame) -> Result<(FittedLinearRegression<f64>, Vec<f64>), Error> {
     let time_index: Vec<f64> = (0..df.height() as i64).map(|i| i as f64).collect();
 
-    let ones = Array::<f64, Ix1>::ones(df.height() as usize);
+    let ones = Array::<f64, Ix1>::ones(df.height());
     let x = stack![Axis(1), Array::from(time_index.clone()), ones];
 
     let y = Array1::from(
