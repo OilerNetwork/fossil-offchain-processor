@@ -1,17 +1,10 @@
 use anyhow::Error;
-use db_access::{queries::get_block_headers_by_time_range, DbConnection};
+use db_access::models::BlockHeader;
 
 use super::utils::hex_string_to_f64;
 
 // Returns volatility as BPS (i.e., 5001 means VOL=50.01%)
-pub async fn calculate_volatility(
-    conn: &DbConnection,
-    start_timestamp: i64,
-    end_timestamp: i64,
-) -> Result<u128, Error> {
-    let blocks =
-        get_block_headers_by_time_range(&conn.pool, start_timestamp, end_timestamp).await?;
-
+pub async fn calculate_volatility(blocks: Vec<BlockHeader>) -> Result<f64, Error> {
     // Calculate log returns
     let mut returns: Vec<f64> = Vec::new();
     for i in 1..blocks.len() {
@@ -34,7 +27,7 @@ pub async fn calculate_volatility(
 
     // If there are no returns the volatility is 0
     if returns.is_empty() {
-        return Ok(0);
+        return Ok(0f64);
     }
 
     // Calculate average returns
@@ -48,5 +41,5 @@ pub async fn calculate_volatility(
         / returns.len() as f64;
 
     // Square root the variance to get the volatility, translate to BPS (integer)
-    Ok((variance.sqrt() * 10_000.0).round() as u128)
+    Ok((variance.sqrt() * 10_000.0).round())
 }

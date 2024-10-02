@@ -17,6 +17,8 @@ jobs:
           - beta
           - nightly
     steps:
+      - name: Install required dependencies
+        run: sudo apt update && sudo apt install libomp-dev libopenblas-dev
       - uses: actions/checkout@v4
       - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
       - name: Build

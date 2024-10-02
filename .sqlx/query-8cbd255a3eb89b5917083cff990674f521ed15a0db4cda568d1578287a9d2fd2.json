@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            block_hash,\n            number,\n            gas_limit,\n            gas_used,\n            base_fee_per_gas,\n            nonce,\n            transaction_root,\n            receipts_root,\n            state_root,\n            timestamp\n        FROM blockheaders\n        WHERE number = $1\n        ",
+  "query": "\n        SELECT \n            block_hash, \n            number, \n            gas_limit, \n            gas_used, \n            base_fee_per_gas, \n            nonce, \n            transaction_root, \n            receipts_root, \n            state_root,\n            timestamp\n        FROM blockheaders\n        WHERE number = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -72,5 +72,5 @@
       true
     ]
   },
-  "hash": "707042883946b33814fba93e269c8b510a71405da2d50e907d0eba23ec7af0ae"
+  "hash": "8cbd255a3eb89b5917083cff990674f521ed15a0db4cda568d1578287a9d2fd2"
 }

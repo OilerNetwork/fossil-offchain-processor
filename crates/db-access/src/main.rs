@@ -7,8 +7,6 @@ async fn main() -> Result<(), sqlx::Error> {
     // Connect to DB
     let db = DbConnection::new().await?;
 
-    // Volatlity
-
     // Get block headers
     let start_block = 13733852;
     let end_block = start_block + 5;

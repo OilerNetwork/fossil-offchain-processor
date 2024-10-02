@@ -1,5 +1,4 @@
-use db_access::DbConnection;
-use db_access::queries::get_block_headers_by_time_range;
+use db_access::models::BlockHeader;
 
 use anyhow::{anyhow as err, Error};
 use chrono::prelude::*;
@@ -16,17 +15,9 @@ use rand_distr::Distribution;
 use rand::prelude::*;
 use statrs::distribution::Binomial;
 use optimization::{Func, GradientDescent, Minimizer, NumericalDifferentiation};
+use super::utils::hex_to_i64;
 
-fn hex_to_i64(hex: String) -> i64 {
-    i64::from_str_radix(hex.as_str().trim_start_matches("0x"), 16).unwrap()
-}
-
-pub async fn calculate_reserve_price(start_timestamp: i64, end_timestamp: i64) -> Result<f64, Error> {
-    // Initialize the database connection
-    let db = DbConnection::new().await?;
-
-    // Assign the result of the query to a variable
-    let block_headers = get_block_headers_by_time_range(&db.pool, start_timestamp, end_timestamp).await?;
+pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64, Error> {
 
     // Create a DataFrame from block_headers
     let mut timestamps: Vec<i64> = Vec::new();

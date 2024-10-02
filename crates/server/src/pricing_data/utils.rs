@@ -9,3 +9,7 @@ pub fn hex_string_to_f64(hex_str: &String) -> f64 {
         panic!("Error converting hex string {:?} to f64", hex_str);
     }
 }
+
+pub fn hex_to_i64(hex: String) -> i64 {
+    i64::from_str_radix(hex.as_str().trim_start_matches("0x"), 16).unwrap()
+}
