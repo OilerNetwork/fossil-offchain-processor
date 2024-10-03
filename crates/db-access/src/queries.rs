@@ -30,7 +30,7 @@ pub async fn get_base_fees_between_blocks(
     let headers = sqlx::query_as!(
         BlockHeaderSubset,
         r#"
-        SELECT number, base_fee_per_gas
+        SELECT number, base_fee_per_gas, timestamp
         FROM blockheaders
         WHERE number BETWEEN $1 AND $2
         ORDER BY number ASC
@@ -137,15 +137,15 @@ pub async fn get_block_by_number(
     let block = sqlx::query_as!(
         BlockHeader,
         r#"
-        SELECT
-            block_hash,
-            number,
-            gas_limit,
-            gas_used,
-            base_fee_per_gas,
-            nonce,
-            transaction_root,
-            receipts_root,
+        SELECT 
+            block_hash, 
+            number, 
+            gas_limit, 
+            gas_used, 
+            base_fee_per_gas, 
+            nonce, 
+            transaction_root, 
+            receipts_root, 
             state_root,
             timestamp
         FROM blockheaders

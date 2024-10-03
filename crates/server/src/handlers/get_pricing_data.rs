@@ -5,7 +5,9 @@ use starknet_crypto::{poseidon_hash_single, Felt};
 use std::collections::HashMap;
 use tokio::{join, time::Instant};
 
-use crate::pricing_data::{twap::calculate_twap, volatility::calculate_volatility};
+use crate::pricing_data::{
+    reserve_price::calculate_reserve_price, twap::calculate_twap, volatility::calculate_volatility,
+};
 
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
@@ -81,34 +83,36 @@ pub async fn get_pricing_data(
             )
         );
 
-        let (twap_blockheaders, volatility_blockheaders, _) = match block_headers_for_calculations {
-            (
-                Ok(twap_blockheaders),
-                Ok(volatility_blockheaders),
-                Ok(reserve_price_blockheaders),
-            ) => (
-                twap_blockheaders,
-                volatility_blockheaders,
-                reserve_price_blockheaders,
-            ),
-            _ => {
-                // If there's a failure in querying, do not exit peacefully.
-                // it means there's something wrong with our db queries.
-                // TOOD: add more detailed error handling.
-                panic!(
-                    "Fail to query db data: {:?}",
-                    block_headers_for_calculations
-                );
-            }
-        };
+        let (twap_blockheaders, volatility_blockheaders, reserve_price_blockheaders) =
+            match block_headers_for_calculations {
+                (
+                    Ok(twap_blockheaders),
+                    Ok(volatility_blockheaders),
+                    Ok(reserve_price_blockheaders),
+                ) => (
+                    twap_blockheaders,
+                    volatility_blockheaders,
+                    reserve_price_blockheaders,
+                ),
+                _ => {
+                    // If there's a failure in querying, do not exit peacefully.
+                    // it means there's something wrong with our db queries.
+                    // TOOD: add more detailed error handling.
+                    panic!(
+                        "Fail to query db data: {:?}",
+                        block_headers_for_calculations
+                    );
+                }
+            };
 
         let twap_future = calculate_twap(twap_blockheaders);
         let volatility_future = calculate_volatility(volatility_blockheaders);
+        let reserve_price_future = calculate_reserve_price(reserve_price_blockheaders);
 
         let now = Instant::now();
         println!("Started processing...");
 
-        let futures_result = join!(twap_future, volatility_future);
+        let futures_result = join!(twap_future, volatility_future, reserve_price_future);
 
         let elapsed = now.elapsed();
         println!("Elapsed: {:.2?}", elapsed);
@@ -118,15 +122,19 @@ pub async fn get_pricing_data(
         let callback_url = payload.callback_url.clone();
 
         match futures_result {
-            (Ok(twap), Ok(volatility_result)) => {
+            (Ok(twap), Ok(volatility_result), Ok(reserve_price_result)) => {
                 // callback the result of the calculation to a given callback url.
+                // Print the calculation results
+                println!("TWAP result: {:?}", twap);
+                println!("Volatility result: {:?}", volatility_result);
+                println!("Reserve price result: {:?}", reserve_price_result);
                 let res = client
                     .post(callback_url.clone())
                     .json(&PitchLakeJobSuccessCallback {
                         job_id: job_id.to_string(),
                         twap,
                         volatility: volatility_result,
-                        reserve_price: 0f64,
+                        reserve_price: reserve_price_result,
                     })
                     .send()
                     .await;

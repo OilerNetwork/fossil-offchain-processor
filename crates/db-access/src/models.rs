@@ -31,4 +31,5 @@ pub struct Transaction {
 pub struct BlockHeaderSubset {
     pub number: i64,
     pub base_fee_per_gas: Option<String>,
+    pub timestamp: Option<i64>,
 }
