@@ -10,17 +10,11 @@ env:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain:
-          - stable
-          - beta
-          - nightly
     steps:
       - name: Install required dependencies
         run: sudo apt update && sudo apt install libomp-dev libopenblas-dev
       - uses: actions/checkout@v4
-      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
+      - run: rustup update stable && rustup default stable
       - name: Build
         run: cargo build --workspace --all-targets
       - name: Test
@@ -28,14 +22,9 @@ jobs:
 
   lint-rust:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain:
-          - stable
-          - beta
-          - nightly
     steps:
       - uses: actions/checkout@v4
+      - run: rustup update stable && rustup default stable
       - name: Run fmt
         run: cargo fmt --all -- --check
       - name: Run clippy
