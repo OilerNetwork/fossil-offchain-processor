@@ -17,22 +17,24 @@ use rand_distr::Distribution;
 use statrs::distribution::Binomial;
 use std::f64::consts::PI;
 
+#[instrument]
 pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64, Error> {
-    // Create a DataFrame from block_headers
     let mut timestamps: Vec<i64> = Vec::new();
     let mut base_fees: Vec<f64> = Vec::new();
 
     for header in block_headers {
-        timestamps.push(
-            header
-                .timestamp
-                .ok_or_else(|| err!("No timestamp in header"))?,
-        );
-        base_fees.push(hex_string_to_f64(
-            &header
-                .base_fee_per_gas
-                .ok_or_else(|| err!("No base fee in header"))?,
-        ));
+        timestamps.push(header.timestamp.ok_or_else(|| {
+            let error_message = "No timestamp in header";
+            error!("{}", error_message);
+            err!(error_message)
+        })?);
+        base_fees.push(hex_string_to_f64(&header.base_fee_per_gas.ok_or_else(
+            || {
+                let error_message = "No base fee in header";
+                error!("{}", error_message);
+                err!(error_message)
+            },
+        )?));
     }
 
     let mut df = DataFrame::new(vec![
@@ -45,39 +47,38 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
     df = add_twap_7d(df)?;
 
     let twap_7d_series = df.column("TWAP_7d")?;
-    let strike = twap_7d_series
-        .f64()?
-        .last()
-        .ok_or_else(|| err!("The series is empty"))?;
+    let strike = twap_7d_series.f64()?.last().ok_or_else(|| {
+        let error_message = "The TWAP_7d series is empty";
+        error!("{}", error_message);
+        err!(error_message)
+    })?;
 
     let num_paths = 15000;
     let n_periods = 720;
     let cap_level = 0.3;
     let risk_free_rate = 0.05;
 
-    // Data Cleaning and Preprocessing - removing null if exist and log transformation
-    // ===============================================================================================
-
+    // Data Cleaning and Preprocessing
     let mut df = drop_nulls(&df, "TWAP_7d")?;
 
     let period_end_date_timestamp = df
         .column("date")?
         .datetime()?
         .get(df.height() - 1)
-        .ok_or_else(|| err!("No row {} in the date column", df.height() - 1))?;
+        .ok_or_else(|| {
+            let error_message = format!("No row {} in the date column", df.height() - 1);
+            error!("{}", error_message);
+            err!(error_message)
+        })?;
 
-    let period_start_date_timestamp = df
-        .column("date")?
-        .datetime()?
-        .get(0)
-        .ok_or_else(|| err!("No row 0 in the date column"))?;
+    let period_start_date_timestamp = df.column("date")?.datetime()?.get(0).ok_or_else(|| {
+        let error_message = "No row 0 in the date column";
+        error!("{}", error_message);
+        err!(error_message)
+    })?;
 
-    // The base fee logarithm is necessary to stabilize variance and make the data more suitable for linear regression analysis
     let log_base_fee = compute_log_of_base_fees(&df)?;
     df.with_column(Series::new("log_base_fee", log_base_fee))?;
-
-    // Running a linear regression to discover the trend, then removing that trend from the log base fee
-    // ===============================================================================================
 
     let (trend_model, trend_values) = discover_trend(&df)?;
     df.with_column(Series::new("trend", trend_values))?;
@@ -86,9 +87,6 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         df["log_base_fee"].f64()? - df["trend"].f64()?,
     ))?;
 
-    // Seasonality modelling amd removal from the detrended log base fee
-    // ===============================================================================================
-
     let (de_seasonalised_detrended_log_base_fee, season_param) =
         remove_seasonality(&mut df, period_start_date_timestamp)?;
     df.with_column(Series::new(
@@ -96,34 +94,30 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         de_seasonalised_detrended_log_base_fee.clone().to_vec(),
     ))?;
 
-    // Monte Carlo Parameter Estimation for the MRJ model
-    // ===============================================================================================
-
     let (de_seasonalized_detrended_simulated_prices, _params) = simulate_prices(
         de_seasonalised_detrended_log_base_fee.view(),
         n_periods,
         num_paths,
     )?;
 
-    // Calculate the total hours in the period
     let total_hours = (period_end_date_timestamp - period_start_date_timestamp) / 3600 / 1000;
 
-    // Generate an array of elapsed hours
     let sim_hourly_times: Array1<f64> =
         Array1::range(0.0, n_periods as f64, 1.0).mapv(|i| total_hours as f64 + i);
 
-    // Adding seasonality back to the simulated prices
-    // ===============================================================================================
     let c = season_matrix(sim_hourly_times);
     let season = c.dot(&season_param);
 
-    let season_reshaped = season.into_shape((n_periods, 1)).unwrap();
+    let season_reshaped = match season.into_shape((n_periods, 1)) {
+        Ok(res) => res,
+        Err(e) => {
+            let error_message = format!("Failed to reshape season matrix: {}", e);
+            error!("{}", error_message);
+            return Err(err!(error_message));
+        }
+    };
 
-    // Broadcasting addition of season to simulated prices
     let detrended_simulated_prices = &de_seasonalized_detrended_simulated_prices + &season_reshaped;
-
-    //  Calibrating and adding stochastic trend to the simulation.
-    //  ===============================================================================================
 
     let log_twap_7d: Vec<f64> = df
         .column("TWAP_7d")?
@@ -132,37 +126,38 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         .map(|x| x.ln())
         .collect();
 
-    // Compute the difference between consecutive elements in log_twap_7d
     let returns: Vec<f64> = log_twap_7d
         .windows(2)
         .map(|window| window[1] - window[0])
         .collect();
 
-    // Drop NaNs from returns
     let returns: Vec<f64> = returns.into_iter().filter(|&x| !x.is_nan()).collect();
 
-    let mu = 0.05 / 52.0; // Weekly drift
-    let sigma = standard_deviation(returns) * f64::sqrt(24.0 * 7.0); // Weekly voldatility
+    let mu = 0.05 / 52.0;
+    let sigma = standard_deviation(returns) * f64::sqrt(24.0 * 7.0);
     let dt = 1.0 / 24.0;
 
     let mut stochastic_trend = Array2::<f64>::zeros((n_periods, num_paths));
 
-    // Generate random shocks for each path
-    let normal = Normal::new(0.0, sigma * (f64::sqrt(dt))).unwrap();
+    let normal = match Normal::new(0.0, sigma * (f64::sqrt(dt))) {
+        Ok(n) => n,
+        Err(e) => {
+            let error_message = format!("Failed to create normal distribution: {}", e);
+            error!("{}", error_message);
+            return Err(err!(error_message));
+        }
+    };
+
     let mut rng = thread_rng();
     for i in 0..num_paths {
         let random_shocks: Vec<f64> = (0..n_periods).map(|_| normal.sample(&mut rng)).collect();
 
-        // Calculate cumulative sum for stochastic trend
         let mut cumsum = 0.0;
         for j in 0..n_periods {
             cumsum += (mu - 0.5 * sigma.powi(2)) * dt + random_shocks[j];
             stochastic_trend[[j, i]] = cumsum;
         }
     }
-
-    // Adding trend and stochastic trend to the simulation, considering the final trend value
-    // =================================================
 
     let coeffs = trend_model.params();
     let final_trend_value = {
@@ -172,32 +167,37 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 
     let mut simulated_log_prices = Array2::<f64>::zeros((n_periods, num_paths));
     for i in 0..n_periods {
-        let trend = final_trend_value; // Use the final trend value for all future time points
+        let trend = final_trend_value;
         for j in 0..num_paths {
             simulated_log_prices[[i, j]] =
                 detrended_simulated_prices[[i, j]] + trend + stochastic_trend[[i, j]];
         }
     }
 
-    // Convert log prices to actual prices
     let simulated_prices = simulated_log_prices.mapv(f64::exp);
 
-    // Calculate TWAP
     let twap_start = n_periods.saturating_sub(24 * 7);
     let final_prices_twap = simulated_prices
         .slice(s![twap_start.., ..])
         .mean_axis(Axis(0))
-        .unwrap();
+        .unwrap_or_else(|| {
+            let error_message = "Failed to calculate final prices TWAP";
+            error!("{}", error_message);
+            Array1::zeros(num_paths)
+        });
 
     let payoffs = final_prices_twap.mapv(|price| {
         let capped_price = (1.0 + cap_level) * strike;
-
         (price.min(capped_price) - strike).max(0.0)
     });
 
-    let average_payoff = payoffs.mean().unwrap_or(0.0);
+    let average_payoff = payoffs.mean().unwrap_or_else(|| {
+        error!("Failed to calculate average payoff");
+        0.0
+    });
     let reserve_price = f64::exp(-risk_free_rate) * average_payoff;
 
+    info!("Reserve price calculated successfully: {}", reserve_price);
     Ok(reserve_price)
 }
 
@@ -219,37 +219,76 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 /// * The seasonal parameters as an Array1<f64>
 ///
 /// Returns an Error if any operation fails.
+#[instrument(skip(df))]
 fn remove_seasonality(
     df: &mut DataFrame,
     start_date_timestamp: i64,
 ) -> Result<(Array1<f64>, Array1<f64>), Error> {
-    let start_date = DateTime::from_timestamp(start_date_timestamp / 1000, 0)
-        .ok_or_else(|| err!("Can't calculate the start date"))?;
+    // Attempt to calculate the start date
+    let start_date = DateTime::from_timestamp(start_date_timestamp / 1000, 0).ok_or_else(|| {
+        let error_message = format!(
+            "Can't calculate the start date from timestamp: {}",
+            start_date_timestamp
+        );
+        error!("{}", error_message);
+        err!(error_message)
+    })?;
 
+    // Create the time series 't' based on the 'date' column
     let t_series: Vec<f64> = df
         .column("date")?
         .datetime()?
         .into_iter()
         .map(|opt_date| {
-            opt_date.map_or(0.0, |date| {
-                (DateTime::from_timestamp(date / 1000, 0).unwrap() - start_date).num_seconds()
-                    as f64
-                    / 3600.0
-            })
+            opt_date.map_or_else(
+                || {
+                    error!("Encountered a null date value in the 'date' column");
+                    0.0
+                },
+                |date| {
+                    (DateTime::from_timestamp(date / 1000, 0)
+                        .ok_or_else(|| {
+                            error!("Failed to convert timestamp: {} to DateTime", date);
+                            err!("Invalid timestamp")
+                        })
+                        .unwrap()
+                        - start_date)
+                        .num_seconds() as f64
+                        / 3600.0
+                },
+            )
         })
         .collect();
 
-    df.with_column(Series::new("t", t_series))?;
+    // Add the 't' column to the DataFrame
+    df.with_column(Series::new("t", t_series)).map_err(|e| {
+        let error_message = format!("Failed to add 't' column to DataFrame: {}", e);
+        error!("{}", error_message);
+        err!(error_message)
+    })?;
 
+    // Convert the 't' column to an ndarray for further calculations
     let t_array = df["t"].f64()?.to_ndarray()?.to_owned();
     let c = season_matrix(t_array);
 
+    // Retrieve and process the detrended log base fee column
     let detrended_log_base_fee_array = df["detrended_log_base_fee"].f64()?.to_ndarray()?.to_owned();
-    let season_param = c.least_squares(&detrended_log_base_fee_array)?.solution;
-    let season = c.dot(&season_param);
-    let de_seasonalised_detrended_log_base_fee =
-        df["detrended_log_base_fee"].f64()?.to_ndarray()?.to_owned() - season;
 
+    // Compute the seasonal parameters using least squares
+    let season_param = c
+        .least_squares(&detrended_log_base_fee_array)
+        .map_err(|e| {
+            let error_message = format!("Least squares fitting failed: {}", e);
+            error!("{}", error_message);
+            err!(error_message)
+        })?
+        .solution;
+
+    // Compute the seasonality matrix and remove it from the detrended log base fee
+    let season = c.dot(&season_param);
+    let de_seasonalised_detrended_log_base_fee = detrended_log_base_fee_array - season;
+
+    info!("Seasonality successfully removed from the log base fee");
     Ok((de_seasonalised_detrended_log_base_fee, season_param))
 }
 
@@ -275,12 +314,14 @@ fn remove_seasonality(
 /// This function will return an error if:
 /// * The parameter estimation fails.
 /// * The Binomial distribution creation fails.
+#[instrument(skip(de_seasonalised_detrended_log_base_fee))]
 fn simulate_prices(
     de_seasonalised_detrended_log_base_fee: ArrayView1<f64>,
     n_periods: usize,
     num_paths: usize,
 ) -> Result<(Array2<f64>, Vec<f64>), Error> {
     let dt = 1.0 / (365.0 * 24.0);
+
     let pt = de_seasonalised_detrended_log_base_fee
         .slice(s![1..])
         .to_owned();
@@ -294,10 +335,16 @@ fn simulate_prices(
     let minimizer = GradientDescent::new().max_iterations(Some(2400));
 
     let var_pt = pt.var(0.0);
-    let solution = minimizer.minimize(
+    let solution = match minimizer.minimize(
         &function,
         vec![-3.928e-02, 2.873e-04, 4.617e-02, var_pt, var_pt, 0.2],
-    );
+    ) {
+        Ok(sol) => sol,
+        Err(e) => {
+            error!("Optimization failed during gradient descent: {}", e);
+            return Err(err!("Optimization failed: {}", e));
+        }
+    };
 
     let params = &solution.position;
     let alpha = params[0] / dt;
@@ -308,9 +355,14 @@ fn simulate_prices(
     let lambda_ = params[5] / dt;
 
     let mut rng = thread_rng();
-    let j: Array2<f64> = {
-        let binom = Binomial::new(lambda_ * dt, 1)?;
-        Array2::from_shape_fn((n_periods, num_paths), |_| binom.sample(&mut rng) as f64)
+    let j: Array2<f64> = match Binomial::new(lambda_ * dt, 1) {
+        Ok(binom) => {
+            Array2::from_shape_fn((n_periods, num_paths), |_| binom.sample(&mut rng) as f64)
+        }
+        Err(e) => {
+            error!("Failed to create Binomial distribution: {}", e);
+            return Err(err!("Binomial distribution creation failed: {}", e));
+        }
     };
 
     let mut simulated_prices = Array2::zeros((n_periods, num_paths));
@@ -322,7 +374,14 @@ fn simulate_prices(
                 [de_seasonalised_detrended_log_base_fee.len() - 1],
         ));
 
-    let normal = Normal::new(0.0, 1.0).unwrap();
+    let normal = match Normal::new(0.0, 1.0) {
+        Ok(norm) => norm,
+        Err(e) => {
+            error!("Failed to create Normal distribution: {}", e);
+            return Err(err!("Normal distribution creation failed: {}", e));
+        }
+    };
+
     let n1 = Array2::from_shape_fn((n_periods, num_paths), |_| normal.sample(&mut rng));
     let n2 = Array2::from_shape_fn((n_periods, num_paths), |_| normal.sample(&mut rng));
 
@@ -342,6 +401,7 @@ fn simulate_prices(
             .assign(&new_prices.clone());
     }
 
+    info!("Price simulation completed successfully.");
     Ok((simulated_prices, params.to_vec()))
 }
 
@@ -362,49 +422,108 @@ fn simulate_prices(
 /// Returns an Error if:
 /// * The 'log_base_fee' column cannot be accessed or converted to f64.
 /// * The linear regression model fails to fit.
+#[instrument(skip(df))]
 fn discover_trend(df: &DataFrame) -> Result<(FittedLinearRegression<f64>, Vec<f64>), Error> {
+    // Create a time index
     let time_index: Vec<f64> = (0..df.height() as i64).map(|i| i as f64).collect();
 
+    // Create an array of ones for intercept
     let ones = Array::<f64, Ix1>::ones(df.height());
-    let x = stack![Axis(1), Array::from(time_index.clone()), ones];
 
-    let y = Array1::from(
-        df["log_base_fee"]
-            .f64()?
-            .into_no_null_iter()
-            .collect::<Vec<f64>>(),
-    );
+    // Stack time_index and ones to create the X matrix for regression
+    let x = match stack![Axis(1), Array::from(time_index.clone()), ones] {
+        Ok(val) => val,
+        Err(e) => {
+            error!("Failed to stack time index and ones for regression: {}", e);
+            return Err(err!("Failed to stack arrays for regression: {}", e));
+        }
+    };
 
+    // Extract the 'log_base_fee' column and convert to an Array1<f64>
+    let y = match df["log_base_fee"].f64() {
+        Ok(col) => Array1::from(col.into_no_null_iter().collect::<Vec<f64>>()),
+        Err(e) => {
+            error!("Failed to access 'log_base_fee' column: {}", e);
+            return Err(err!("Failed to access 'log_base_fee' column: {}", e));
+        }
+    };
+
+    // Create the dataset for the regression model
     let dataset = Dataset::<f64, f64, Ix1>::new(x.clone(), y);
-    let trend_model = LinearRegression::default()
+
+    // Fit the linear regression model without intercept
+    let trend_model = match LinearRegression::default()
         .with_intercept(false)
-        .fit(&dataset)?;
+        .fit(&dataset)
+    {
+        Ok(model) => model,
+        Err(e) => {
+            error!("Failed to fit linear regression model: {}", e);
+            return Err(err!("Failed to fit linear regression model: {}", e));
+        }
+    };
 
-    let trend_values = trend_model.predict(&x).as_targets().to_vec();
+    // Predict trend values
+    let trend_values = match trend_model.predict(&x).as_targets() {
+        Ok(values) => values.to_vec(),
+        Err(e) => {
+            error!("Failed to predict trend values: {}", e);
+            return Err(err!("Failed to predict trend values: {}", e));
+        }
+    };
 
+    info!("Trend model fitted and values predicted successfully");
     Ok((trend_model, trend_values))
 }
 
 // Computes the natural logarithm of 'base_fee' values
+#[instrument(skip(df))]
 fn compute_log_of_base_fees(df: &DataFrame) -> Result<Vec<f64>, Error> {
-    let log_base_fees: Vec<f64> = df
-        .column("base_fee")?
-        .f64()?
-        .into_no_null_iter()
-        .map(|x| x.ln())
-        .collect();
+    // Attempt to retrieve the 'base_fee' column and compute its natural logarithm
+    let log_base_fees: Vec<f64> = match df.column("base_fee") {
+        Ok(col) => match col.f64() {
+            Ok(float_col) => float_col.into_no_null_iter().map(|x| x.ln()).collect(),
+            Err(e) => {
+                error!("Failed to convert 'base_fee' column to f64: {}", e);
+                return Err(err!("Failed to convert 'base_fee' column to f64: {}", e));
+            }
+        },
+        Err(e) => {
+            error!("Failed to retrieve 'base_fee' column: {}", e);
+            return Err(err!("Failed to retrieve 'base_fee' column: {}", e));
+        }
+    };
+
+    // Successfully computed log of base fees
     Ok(log_base_fees)
 }
 
-// Removes rows with null values in the specified column and returns a new DataFrame
+#[instrument(skip(df))]
 fn drop_nulls(df: &DataFrame, column_name: &str) -> Result<DataFrame, Error> {
-    let df = df
+    // Attempt to remove rows with null values in the specified column
+    let df_result = df
         .clone()
         .lazy()
         .filter(col(column_name).is_not_null())
-        .collect()?;
+        .collect();
 
-    Ok(df)
+    match df_result {
+        Ok(filtered_df) => {
+            // Successfully removed null values
+            Ok(filtered_df)
+        }
+        Err(e) => {
+            error!(
+                "Failed to drop null values from column '{}': {}",
+                column_name, e
+            );
+            Err(err!(
+                "Failed to drop null values from column '{}': {}",
+                column_name,
+                e
+            ))
+        }
+    }
 }
 
 /// Creates a seasonal matrix for time series analysis.

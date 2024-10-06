@@ -3,6 +3,7 @@ use db_access::{queries::get_block_headers_by_time_range, DbConnection};
 use serde::{Deserialize, Serialize};
 use starknet_crypto::{poseidon_hash_single, Felt};
 use tokio::{join, time::Instant};
+use tracing::{error, info};
 
 use crate::pricing_data::{
     reserve_price::calculate_reserve_price, twap::calculate_twap, volatility::calculate_volatility,
@@ -30,11 +31,6 @@ pub enum PitchLakeJobCallback {
     Success(PitchLakeJobSuccessCallback),
 }
 
-// TODO: Placeholder for now, need to be more generic
-// Note that all the number fields are f64; this is because
-// json supports only i32 and for some reason f64 when deserializing.
-// If we want values other than these, making them string might be a
-// good idea.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobSuccessCallback {
     pub job_id: String,
@@ -43,9 +39,6 @@ pub struct PitchLakeJobSuccessCallback {
     pub reserve_price: f64,
 }
 
-/// TODO: might want to introduce a 'status' field or
-/// an 'error code' field to make error handling on client
-/// side better.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobFailedCallback {
     pub job_id: String,
@@ -64,128 +57,9 @@ pub async fn get_pricing_data(
     let job_id = poseidon_hash_single(Felt::from_bytes_be_slice(
         payload.identifiers.join("").as_bytes(),
     ));
-    // TODO(cwk): save the jobid somewhere
 
-    // TODO: Is there anyway to extract this async section?
-    tokio::spawn(async move {
-        let block_headers_for_calculations = join!(
-            get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),
-            get_block_headers_by_time_range(
-                &db.pool,
-                payload.params.volatility.0,
-                payload.params.volatility.1
-            ),
-            get_block_headers_by_time_range(
-                &db.pool,
-                payload.params.reserve_price.0,
-                payload.params.reserve_price.1
-            )
-        );
-
-        let (twap_blockheaders, volatility_blockheaders, reserve_price_blockheaders) =
-            match block_headers_for_calculations {
-                (
-                    Ok(twap_blockheaders),
-                    Ok(volatility_blockheaders),
-                    Ok(reserve_price_blockheaders),
-                ) => (
-                    twap_blockheaders,
-                    volatility_blockheaders,
-                    reserve_price_blockheaders,
-                ),
-                _ => {
-                    // If there's a failure in querying, do not exit peacefully.
-                    // it means there's something wrong with our db queries.
-                    // TOOD: add more detailed error handling.
-                    panic!(
-                        "Fail to query db data: {:?}",
-                        block_headers_for_calculations
-                    );
-                }
-            };
-
-        let twap_future = calculate_twap(twap_blockheaders);
-        let volatility_future = calculate_volatility(volatility_blockheaders);
-        let reserve_price_future = calculate_reserve_price(reserve_price_blockheaders);
-
-        let now = Instant::now();
-        println!("Started processing...");
-
-        let futures_result = join!(twap_future, volatility_future, reserve_price_future);
-
-        let elapsed = now.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
-
-        let client = reqwest::Client::new();
-
-        let callback_url = payload.callback_url.clone();
-
-        match futures_result {
-            (Ok(twap), Ok(volatility_result), Ok(reserve_price_result)) => {
-                // callback the result of the calculation to a given callback url.
-                // Print the calculation results
-                println!("TWAP result: {:?}", twap);
-                println!("Volatility result: {:?}", volatility_result);
-                println!("Reserve price result: {:?}", reserve_price_result);
-                let res = client
-                    .post(callback_url.clone())
-                    .json(&PitchLakeJobSuccessCallback {
-                        job_id: job_id.to_string(),
-                        twap,
-                        volatility: volatility_result,
-                        reserve_price: reserve_price_result,
-                    })
-                    .send()
-                    .await;
-
-                match res {
-                    // If our callback fail we can't do much to inform our client.
-                    // so just log out the issue for debugging.
-                    Ok(callback_res) => {
-                        if !callback_res.status().is_success() {
-                            eprintln!(
-                                "Callback response unsuccessful: {:?}",
-                                callback_res.text().await
-                            );
-                        }
-                    }
-                    Err(err) => {
-                        eprintln!("Callback call failed: {}", err);
-                    }
-                }
-            }
-            // This means that either some of them failed, or all of them failed.
-            // treating a single fail as all failed for now.
-            future_tuple_with_err => {
-                // We try to also inform of calculation error, so that client side knows
-                // when there's an issue with calculation on our part
-
-                eprintln!("Failed calculation: {:?}", future_tuple_with_err);
-
-                let res = client
-                    .post(callback_url.clone())
-                    .json(&PitchLakeJobFailedCallback {
-                        job_id: job_id.to_string(),
-                        error: "Failed to calculate data".to_string(),
-                    })
-                    .send()
-                    .await;
-
-                match res {
-                    // If our callback fail we can't do much to inform our client.
-                    // so just log out the issue for debugging.
-                    Ok(callback_res) => {
-                        if !callback_res.status().is_success() {
-                            eprintln!("Callback response unsuccessful: {:?}", callback_res);
-                        }
-                    }
-                    Err(err) => {
-                        eprintln!("Callback call failed: {}", err);
-                    }
-                }
-            }
-        }
-    });
+    // Spawn async task for processing the job
+    tokio::spawn(perform_calculations_and_callback(db, payload, job_id));
 
     (
         StatusCode::OK,
@@ -193,4 +67,146 @@ pub async fn get_pricing_data(
             job_id: job_id.to_string(),
         }),
     )
+}
+
+async fn perform_calculations_and_callback(
+    db: DbConnection,
+    payload: PitchLakeJobRequest,
+    job_id: Felt,
+) {
+    // Fetch block headers concurrently
+    let block_headers_for_calculations = join!(
+        get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),
+        get_block_headers_by_time_range(
+            &db.pool,
+            payload.params.volatility.0,
+            payload.params.volatility.1
+        ),
+        get_block_headers_by_time_range(
+            &db.pool,
+            payload.params.reserve_price.0,
+            payload.params.reserve_price.1
+        )
+    );
+
+    let (twap_blockheaders, volatility_blockheaders, reserve_price_blockheaders) =
+        match block_headers_for_calculations {
+            (
+                Ok(twap_blockheaders),
+                Ok(volatility_blockheaders),
+                Ok(reserve_price_blockheaders),
+            ) => (
+                twap_blockheaders,
+                volatility_blockheaders,
+                reserve_price_blockheaders,
+            ),
+            _ => {
+                error!(
+                    "Failed to query db data: {:?}",
+                    block_headers_for_calculations
+                );
+                send_failure_callback(
+                    payload.callback_url.clone(),
+                    job_id.to_string(),
+                    "Failed to query DB data".to_string(),
+                )
+                .await;
+                return;
+            }
+        };
+
+    // Run computations concurrently
+    let twap_future = calculate_twap(twap_blockheaders);
+    let volatility_future = calculate_volatility(volatility_blockheaders);
+    let reserve_price_future = calculate_reserve_price(reserve_price_blockheaders);
+
+    let now = Instant::now();
+    info!("Started processing job_id={}", job_id);
+
+    let futures_result = join!(twap_future, volatility_future, reserve_price_future);
+
+    let elapsed = now.elapsed();
+    info!("Job_id={} processing completed in {:.2?}", job_id, elapsed);
+
+    let client = reqwest::Client::new();
+    let callback_url = payload.callback_url.clone();
+
+    match futures_result {
+        (Ok(twap), Ok(volatility_result), Ok(reserve_price_result)) => {
+            info!(
+                "TWAP result for job_id={}: {:?}, Volatility result: {:?}, Reserve price result: {:?}",
+                job_id, twap, volatility_result, reserve_price_result
+            );
+
+            let res = client
+                .post(callback_url.clone())
+                .json(&PitchLakeJobSuccessCallback {
+                    job_id: job_id.to_string(),
+                    twap,
+                    volatility: volatility_result,
+                    reserve_price: reserve_price_result,
+                })
+                .send()
+                .await;
+
+            if let Err(err) = handle_callback_response(res, &job_id.to_string()).await {
+                error!("Callback failed for job_id={}: {}", job_id, err);
+            }
+        }
+        _ => {
+            error!(
+                "Failed calculation for job_id={}: {:?}",
+                job_id, futures_result
+            );
+
+            send_failure_callback(
+                callback_url.clone(),
+                job_id.to_string(),
+                "Failed to calculate data".to_string(),
+            )
+            .await;
+        }
+    }
+}
+
+async fn send_failure_callback(callback_url: String, job_id: String, error: String) {
+    let client = reqwest::Client::new();
+    let res = client
+        .post(callback_url.clone())
+        .json(&PitchLakeJobFailedCallback { job_id, error })
+        .send()
+        .await;
+
+    if let Err(err) = handle_callback_response(res, &job_id).await {
+        error!(
+            "Failed to send failure callback for job_id={}: {}",
+            job_id, err
+        );
+    }
+}
+
+async fn handle_callback_response(
+    res: Result<reqwest::Response, reqwest::Error>,
+    job_id: &str,
+) -> Result<(), String> {
+    match res {
+        Ok(callback_res) => {
+            if !callback_res.status().is_success() {
+                let text = callback_res
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Failed to retrieve error text".to_string());
+                Err(format!(
+                    "Callback response unsuccessful for job_id={}: {}",
+                    job_id, text
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        Err(err) => Err(format!(
+            "Callback call failed for job_id={}: {}",
+            job_id, err
+        )),
+    }
 }
