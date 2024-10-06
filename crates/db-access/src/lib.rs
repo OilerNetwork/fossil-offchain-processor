@@ -1,4 +1,4 @@
-mod models;
+pub mod models;
 pub mod queries;
 
 use dotenv::dotenv;
@@ -6,6 +6,7 @@ use sqlx::postgres::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 
+#[derive(Clone, Debug)]
 pub struct DbConnection {
     pub pool: PgPool,
 }

@@ -7,13 +7,13 @@ use constants::{
     GENESIS_TO_LONDON_END, LONDON_TO_PARIS_END, LONDON_TO_PARIS_START, PARIS_TO_SHANGHAI_END,
     PARIS_TO_SHANGHAI_START,
 };
+use dotenv::dotenv;
 use eras::{
     encode_genesis_to_london, encode_london_to_paris, encode_paris_to_shanghai,
     encode_shanghai_to_cancun,
 };
 use rpc_client::fetch_block_header;
 use std::env;
-use dotenv::dotenv;
 
 pub async fn encode_block_by_number(
     block_number: u64,
