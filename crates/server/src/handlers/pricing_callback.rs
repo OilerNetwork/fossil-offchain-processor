@@ -10,3 +10,5 @@ pub async fn pricing_callback(
 
     (StatusCode::OK, "Callback OK!")
 }
+
+// No test needed here, since we only use this for internal testing purposes. Due for removal.

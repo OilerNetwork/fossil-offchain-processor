@@ -9,3 +9,35 @@ pub fn hex_string_to_f64(hex_str: &String) -> f64 {
         panic!("Error converting hex string {:?} to f64", hex_str);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hex_string_to_f64_zero_value() {
+        let result = hex_string_to_f64(&"0x0".to_string());
+
+        assert_eq!(result, 0f64);
+    }
+
+    #[test]
+    fn test_hex_string_to_f64_prefixed_value() {
+        let result = hex_string_to_f64(&"0x12345".to_string());
+
+        assert_eq!(result, 74565_f64);
+    }
+
+    #[test]
+    fn test_hex_string_to_f64_non_prefixed_value() {
+        let result = hex_string_to_f64(&"12345".to_string());
+
+        assert_eq!(result, 74565_f64);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_hex_string_to_f64_invalid_value() {
+        hex_string_to_f64(&"shouldpanic".to_string());
+    }
+}
