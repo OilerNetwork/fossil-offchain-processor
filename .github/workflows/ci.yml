@@ -1,4 +1,4 @@
-name: Cargo Build & Format
+name: Cargo Build, Test, and Lint
 
 on:
   push:
@@ -14,9 +14,12 @@ jobs:
       - name: Install required dependencies
         run: sudo apt update && sudo apt install libomp-dev libopenblas-dev
       - uses: actions/checkout@v4
-      - run: rustup update stable && rustup default stable
+      - name: Set up stable Rust toolchain
+        run: rustup update stable && rustup default stable
       - name: Build
         run: cargo build --workspace --all-targets
+      - name: Run Clippy
+        run: cargo clippy --workspace -- -D warnings
       - name: Test
         run: cargo test --workspace --all-targets
 
@@ -24,7 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: rustup update stable && rustup default stable
+      - name: Set up stable Rust toolchain
+        run: rustup update stable && rustup default stable
       - name: Run fmt
         run: cargo fmt --all -- --check
       - name: Run clippy
