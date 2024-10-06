@@ -1,4 +1,4 @@
-use db_access::{DbConnection, queries::get_block_by_number};
+use db_access::{queries::get_block_by_number, DbConnection};
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {
