@@ -2,7 +2,6 @@ use axum::{extract::State, http::StatusCode, Json};
 use db_access::{queries::get_block_headers_by_time_range, DbConnection};
 use serde::{Deserialize, Serialize};
 use starknet_crypto::{poseidon_hash_single, Felt};
-use std::collections::HashMap;
 use tokio::{join, time::Instant};
 
 use crate::pricing_data::{
@@ -39,7 +38,7 @@ pub enum PitchLakeJobCallback {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PitchLakeJobSuccessCallback {
     pub job_id: String,
-    pub twap: HashMap<String, f64>,
+    pub twap: f64,
     pub volatility: f64,
     pub reserve_price: f64,
 }
