@@ -11,7 +11,7 @@ tokio = { version = "1", features = ["full"] }
 axum = "0.7.7"
 axum-extra = { version = "0.9.4", features = ["json-deserializer"] }
 tower = "0.5.1"
-tower-http = {version="0.6.1", features = ["cors", "trace", "auth"]}
+tower-http = { version = "0.6.1", features = ["cors", "trace", "auth"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0.89"
@@ -19,6 +19,12 @@ chrono = "0.4.38"
 reqwest = { version = "0.12", features = ["json"] }
 starknet = "0.12.0"
 starknet-crypto = "0.7.2"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = [
+    "registry",
+    "env-filter",
+    "fmt",
+] }
 
 sqlx = { version = "0.8.0", features = [
     "postgres",

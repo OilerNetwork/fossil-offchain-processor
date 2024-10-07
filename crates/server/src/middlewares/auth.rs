@@ -32,7 +32,7 @@ pub async fn simple_apikey_auth(
             return match matching_api_key {
                 Ok(_) => next.run(request).await,
                 Err(err) => {
-                    eprintln!("{:?}", err);
+                    tracing::debug!("{:?}", err);
                     (StatusCode::UNAUTHORIZED, Json(response_data)).into_response()
                 }
             };

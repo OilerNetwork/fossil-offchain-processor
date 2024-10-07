@@ -109,12 +109,12 @@ pub async fn get_pricing_data(
         let reserve_price_future = calculate_reserve_price(reserve_price_blockheaders);
 
         let now = Instant::now();
-        println!("Started processing...");
+        tracing::info!("Started processing...");
 
         let futures_result = join!(twap_future, volatility_future, reserve_price_future);
 
         let elapsed = now.elapsed();
-        println!("Elapsed: {:.2?}", elapsed);
+        tracing::info!("Elapsed: {:.2?}", elapsed);
 
         let client = reqwest::Client::new();
 
@@ -124,9 +124,9 @@ pub async fn get_pricing_data(
             (Ok(twap), Ok(volatility_result), Ok(reserve_price_result)) => {
                 // callback the result of the calculation to a given callback url.
                 // Print the calculation results
-                println!("TWAP result: {:?}", twap);
-                println!("Volatility result: {:?}", volatility_result);
-                println!("Reserve price result: {:?}", reserve_price_result);
+                tracing::debug!("TWAP result: {:?}", twap);
+                tracing::debug!("Volatility result: {:?}", volatility_result);
+                tracing::debug!("Reserve price result: {:?}", reserve_price_result);
                 let res = client
                     .post(callback_url.clone())
                     .json(&PitchLakeJobSuccessCallback {
@@ -143,14 +143,14 @@ pub async fn get_pricing_data(
                     // so just log out the issue for debugging.
                     Ok(callback_res) => {
                         if !callback_res.status().is_success() {
-                            eprintln!(
+                            tracing::error!(
                                 "Callback response unsuccessful: {:?}",
                                 callback_res.text().await
                             );
                         }
                     }
                     Err(err) => {
-                        eprintln!("Callback call failed: {}", err);
+                        tracing::error!("Callback call failed: {}", err);
                     }
                 }
             }
@@ -160,7 +160,7 @@ pub async fn get_pricing_data(
                 // We try to also inform of calculation error, so that client side knows
                 // when there's an issue with calculation on our part
 
-                eprintln!("Failed calculation: {:?}", future_tuple_with_err);
+                tracing::error!("Failed calculation: {:?}", future_tuple_with_err);
 
                 let res = client
                     .post(callback_url.clone())
@@ -176,11 +176,11 @@ pub async fn get_pricing_data(
                     // so just log out the issue for debugging.
                     Ok(callback_res) => {
                         if !callback_res.status().is_success() {
-                            eprintln!("Callback response unsuccessful: {:?}", callback_res);
+                            tracing::error!("Callback response unsuccessful: {:?}", callback_res);
                         }
                     }
                     Err(err) => {
-                        eprintln!("Callback call failed: {}", err);
+                        tracing::error!("Callback call failed: {}", err);
                     }
                 }
             }

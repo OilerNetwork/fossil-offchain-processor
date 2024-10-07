@@ -6,7 +6,7 @@ use super::get_pricing_data::PitchLakeJobCallback;
 pub async fn pricing_callback(
     Json(payload): Json<PitchLakeJobCallback>,
 ) -> (StatusCode, &'static str) {
-    println!("Payload received! {:?}", payload);
+    tracing::debug!("Payload received! {:?}", payload);
 
     (StatusCode::OK, "Callback OK!")
 }
