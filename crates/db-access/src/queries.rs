@@ -30,7 +30,7 @@ pub async fn get_base_fees_between_blocks(
     let headers = sqlx::query_as!(
         BlockHeaderSubset,
         r#"
-        SELECT number, base_fee_per_gas
+        SELECT number, base_fee_per_gas, timestamp
         FROM blockheaders
         WHERE number BETWEEN $1 AND $2
         ORDER BY number ASC
@@ -146,7 +146,8 @@ pub async fn get_block_by_number(
             nonce, 
             transaction_root, 
             receipts_root, 
-            state_root
+            state_root,
+            timestamp
         FROM blockheaders
         WHERE number = $1
         "#,
@@ -156,4 +157,36 @@ pub async fn get_block_by_number(
     .await?;
 
     Ok(block)
+}
+
+pub async fn get_block_headers_by_time_range(
+    pool: &PgPool,
+    start_timestamp: i64,
+    end_timestamp: i64,
+) -> Result<Vec<BlockHeader>, Error> {
+    let headers = sqlx::query_as!(
+        BlockHeader,
+        r#"
+        SELECT 
+            block_hash, 
+            number, 
+            gas_limit, 
+            gas_used, 
+            base_fee_per_gas, 
+            nonce, 
+            transaction_root, 
+            receipts_root, 
+            state_root,
+            timestamp
+        FROM blockheaders
+        WHERE timestamp BETWEEN $1 AND $2
+        ORDER BY number ASC
+        "#,
+        start_timestamp,
+        end_timestamp
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(headers)
 }

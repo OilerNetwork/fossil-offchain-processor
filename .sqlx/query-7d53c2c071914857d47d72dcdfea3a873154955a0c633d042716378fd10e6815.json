@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT AVG(CAST(base_fee_per_gas AS NUMERIC))\n        FROM blockheaders\n        WHERE number BETWEEN $1 AND $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "avg",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7d53c2c071914857d47d72dcdfea3a873154955a0c633d042716378fd10e6815"
+}
