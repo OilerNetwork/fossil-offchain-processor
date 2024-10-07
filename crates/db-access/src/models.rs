@@ -33,3 +33,9 @@ pub struct BlockHeaderSubset {
     pub base_fee_per_gas: Option<String>,
     pub timestamp: Option<i64>,
 }
+
+#[derive(sqlx::FromRow, Debug)]
+pub struct ApiKey {
+    pub key: String,
+    pub name: Option<String>,
+}
