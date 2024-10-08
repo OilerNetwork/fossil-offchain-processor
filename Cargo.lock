@@ -748,6 +748,7 @@ name = "db-access"
 version = "0.1.0"
 dependencies = [
  "dotenv",
+ "serde",
  "sqlx",
  "tokio",
 ]
