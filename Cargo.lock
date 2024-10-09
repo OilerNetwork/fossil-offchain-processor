@@ -442,6 +442,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-validity"
+version = "0.1.0"
+dependencies = [
+ "db-access",
+ "eth-rlp-verify",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -986,21 +997,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eth-block-rlp"
-version = "0.1.0"
-dependencies = [
- "dotenv",
- "ethereum-types 0.14.1",
- "hex",
- "reqwest 0.12.8",
- "rlp 0.5.2",
- "serde",
- "serde_json",
- "sha3",
- "tokio",
-]
-
-[[package]]
 name = "eth-keystore"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1025,7 +1021,7 @@ dependencies = [
 [[package]]
 name = "eth-rlp-verify"
 version = "0.1.0"
-source = "git+https://github.com/ametel01/eth-rlp-verify.git#cbae1ad5ef35d7295416b214dbffae2725e2985a"
+source = "git+https://github.com/ametel01/eth-rlp-verify.git#969ee0ec45c06474967c23bc36e2cd02b71b9d31"
 dependencies = [
  "clap",
  "dotenv",
@@ -5292,7 +5288,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
