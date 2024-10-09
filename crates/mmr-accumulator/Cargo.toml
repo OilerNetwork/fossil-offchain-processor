@@ -6,4 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+block-validity = { path = "../block-validity" }
+db-access = { path = "../db-access" }
 accumulators = { version = "0.4", features = ["all"] }
+tokio = { version = "1.36.0", features = ["full"] }
+sqlx = { version = "0.7.0", features = ["postgres", "runtime-tokio-native-tls", "bigdecimal"] }
+anyhow = "1.0"

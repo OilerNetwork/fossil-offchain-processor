@@ -2219,6 +2219,11 @@ name = "mmr-accumulator"
 version = "0.1.0"
 dependencies = [
  "accumulators",
+ "anyhow",
+ "block-validity",
+ "db-access",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]

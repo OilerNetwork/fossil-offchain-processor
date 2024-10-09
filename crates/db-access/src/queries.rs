@@ -190,3 +190,23 @@ pub async fn get_block_headers_by_time_range(
 
     Ok(headers)
 }
+
+pub async fn get_block_hashes_by_block_range(
+    pool: &PgPool,
+    start_block: i64,
+    end_block: i64,
+) -> Result<Vec<String>, Error> {
+    let block_hashes = sqlx::query_scalar!(
+        r#"
+        SELECT block_hash
+        FROM blockheaders
+        WHERE number BETWEEN $1 AND $2
+        "#,
+        start_block,
+        end_block
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(block_hashes)
+}

@@ -16,7 +16,6 @@ pub fn are_blocks_and_chain_valid(block_headers: Vec<BlockHeader>) -> bool {
         }
 
         if i != 0 {
-            
             let previous_block = &block_headers[i - 1];
             let previous_block_hash = previous_block.block_hash.clone();
 
