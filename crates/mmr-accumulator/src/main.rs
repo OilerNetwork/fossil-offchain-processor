@@ -5,10 +5,10 @@ use accumulators::{hasher::keccak::KeccakHasher, mmr::MMR, store::sqlite::SQLite
 use anyhow::Result;
 use db_access::{queries::get_block_hashes_by_block_range, DbConnection};
 use sqlx::SqlitePool;
-use std::sync::Arc;
+use std::env;
 use std::fs::{self, File};
 use std::path::Path;
-use std::env;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -54,9 +54,9 @@ async fn main() -> Result<()> {
         db_file_counter += 1; // Increment for the next batch
 
         // Ensure the SQLite database file can be created
-        let store_manager = StoreManager::new(&store_path_str).await?;
-        let pool = SqlitePool::connect(&store_path_str).await?;
-        let store = Arc::new(SQLiteStore::new(&store_path_str, Some(true), None).await?);
+        let store_manager = StoreManager::new(store_path_str).await?;
+        let pool = SqlitePool::connect(store_path_str).await?;
+        let store = Arc::new(SQLiteStore::new(store_path_str, Some(true), None).await?);
 
         // Initialize the MMR for this block range
         let hasher = Arc::new(KeccakHasher::new());

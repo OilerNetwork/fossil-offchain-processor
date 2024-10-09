@@ -4,8 +4,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+#[allow(dead_code)]
 pub struct StoreFactory;
 
+#[allow(dead_code)]
 impl StoreFactory {
     pub async fn create_store(path: &str, id: Option<&str>) -> Result<SQLiteStore, StoreError> {
         SQLiteStore::new(path, Some(true), id)
@@ -14,6 +16,7 @@ impl StoreFactory {
     }
 }
 
+#[allow(dead_code)]
 pub struct StoreManager {
     stores: Mutex<HashMap<String, Arc<SQLiteStore>>>,
 }
@@ -66,6 +69,7 @@ impl StoreManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn get_element_index_for_value(
         &self,
         pool: &SqlitePool,
