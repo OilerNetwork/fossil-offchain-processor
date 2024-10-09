@@ -3,7 +3,6 @@ mod utils;
 use db_access::rpc::get_block_headers_in_range;
 use std::error::Error;
 use tracing::info;
-use tracing_subscriber;
 use utils::are_blocks_and_chain_valid;
 
 #[tokio::main]
