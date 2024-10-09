@@ -44,13 +44,21 @@ jobs:
 
   lint-rust:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain:
-          - stable
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set DATABASE_URL environment variable for linting
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}  # Use the secret for online mode
+        run: echo "DATABASE_URL is set"
+
       - name: Run fmt
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: cargo fmt --all -- --check
+      
       - name: Run clippy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: cargo clippy --workspace -- -D warnings
+
