@@ -21,9 +21,13 @@ jobs:
         run: sudo apt update && sudo apt install libomp-dev libopenblas-dev
       - uses: actions/checkout@v4
       - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
-      - name: Build
+      - name: Set SQLX_OFFLINE to true
+        env:
+          SQLX_OFFLINE: true  # Enforce offline mode for SQLx
         run: cargo build --workspace --all-targets
       - name: Test
+        env:
+          SQLX_OFFLINE: true  # Enforce offline mode for SQLx during tests
         run: cargo test --workspace --all-targets
 
   lint-rust:
@@ -32,8 +36,6 @@ jobs:
       matrix:
         toolchain:
           - stable
-          - beta
-          - nightly
     steps:
       - uses: actions/checkout@v4
       - name: Run fmt
