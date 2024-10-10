@@ -1,10 +1,10 @@
+use crate::store::StoreManager;
 use accumulators::{
     hasher::stark_poseidon::StarkPoseidonHasher, mmr::MMR, store::sqlite::SQLiteStore,
 };
 use anyhow::Result;
 use db_access::{queries::get_block_hashes_by_block_range, DbConnection};
-use crate::store::StoreManager;
-use sqlx::{SqlitePool, Row};
+use sqlx::{Row, SqlitePool};
 use std::env;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -28,7 +28,7 @@ pub fn ensure_directory_exists(dir_name: &str) -> Result<PathBuf> {
 pub fn create_database_file(current_dir: &Path, db_file_counter: usize) -> Result<String> {
     let store_path = current_dir.join(format!("{}.db", db_file_counter));
     let store_path_str = store_path.to_str().unwrap();
-    
+
     if !Path::new(store_path_str).exists() {
         info!("Creating empty database file: {}", store_path_str);
         File::create(store_path_str)?; // Ensure the file is created

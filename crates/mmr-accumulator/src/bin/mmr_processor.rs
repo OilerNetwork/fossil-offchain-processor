@@ -1,11 +1,13 @@
 use anyhow::Result;
 use db_access::DbConnection;
-use tracing::{error, info};
 use mmr_accumulator::processor_utils::*;
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
 
     info!("Starting MMR Processor");
 
@@ -26,7 +28,12 @@ async fn main() -> Result<()> {
             break;
         }
 
-        info!("Processing batch {}: blocks {} to {}", batch_number, start_block, start_block + batch_size - 1);
+        info!(
+            "Processing batch {}: blocks {} to {}",
+            batch_number,
+            start_block,
+            start_block + batch_size - 1
+        );
 
         // Ensure the SQLite database file can be created
         let store_path = create_database_file(&current_dir, db_file_counter)?;
@@ -66,5 +73,3 @@ async fn main() -> Result<()> {
     info!("MMR processing complete");
     Ok(())
 }
-
-

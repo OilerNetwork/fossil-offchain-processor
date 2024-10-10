@@ -31,7 +31,7 @@ impl StoreManager {
             CREATE TABLE IF NOT EXISTS mmr_metadata (
                 mmr_id TEXT PRIMARY KEY
             )
-            "#
+            "#,
         )
         .execute(&pool)
         .await?;

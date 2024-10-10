@@ -6,7 +6,7 @@ use accumulators::{
 use anyhow::Result;
 use sqlx::SqlitePool;
 use std::sync::Arc;
-use tracing::{info, error};
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -22,21 +22,19 @@ async fn main() -> Result<()> {
     let pool = SqlitePool::connect(db_path).await?;
 
     // Query the `mmr_metadata` table to retrieve the mmr_id
-    let mmr_id = sqlx::query_scalar::<_, String>(
-        "SELECT mmr_id FROM mmr_metadata LIMIT 1"
-    )
-    .fetch_optional(&pool)
-    .await?;
+    let mmr_id = sqlx::query_scalar::<_, String>("SELECT mmr_id FROM mmr_metadata LIMIT 1")
+        .fetch_optional(&pool)
+        .await?;
 
     let mmr_id = match mmr_id {
         Some(id) => {
             info!("Retrieved MMR ID from mmr_metadata: {}", id);
             Some(id)
-        },
+        }
         None => {
             error!("No MMR ID found in mmr_metadata, using a new MMR ID.");
             None // Generate a new MMR ID if none is found
-        },
+        }
     };
 
     // Initialize the SQLite store directly
