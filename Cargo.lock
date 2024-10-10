@@ -2224,6 +2224,9 @@ dependencies = [
  "db-access",
  "sqlx",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid 1.10.0",
 ]
 
 [[package]]

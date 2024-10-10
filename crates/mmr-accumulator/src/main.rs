@@ -1,94 +1,65 @@
-mod store;
-
-use crate::store::StoreManager;
-use accumulators::{hasher::keccak::KeccakHasher, mmr::MMR, store::sqlite::SQLiteStore};
+use accumulators::{
+    hasher::stark_poseidon::StarkPoseidonHasher,
+    mmr::MMR,
+    store::{sqlite::SQLiteStore, SubKey},
+};
 use anyhow::Result;
-use db_access::{queries::get_block_hashes_by_block_range, DbConnection};
 use sqlx::SqlitePool;
-use std::env;
-use std::fs::{self, File};
-use std::path::Path;
 use std::sync::Arc;
+use tracing::{info, error};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize the database connection for fetching block hashes
-    let db = DbConnection::new().await?;
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
 
-    // Define the block range
-    let batch_size = 1024;
-    let mut start_block = 1;
+    let db_path = "db-instances/1.db";
+    let absolute_db_path = std::fs::canonicalize(db_path)?;
+    info!("Using database file at: {}", absolute_db_path.display());
 
-    // Ensure the `db-instances/` directory exists, create if not
-    let db_dir = "db-instances";
-    let current_dir = env::current_dir()?.join(db_dir);
-    if !current_dir.exists() {
-        println!("Creating directory: {}", current_dir.display());
-        fs::create_dir_all(&current_dir)?; // Ensure directory is created
-    } else {
-        println!("Directory already exists: {}", current_dir.display());
-    }
+    // Connect to the SQLite database
+    let pool = SqlitePool::connect(db_path).await?;
 
-    // Loop through block ranges to create multiple MMRs
-    let mut db_file_counter = 0; // Start the file name counter from 0.db
+    // Query the `mmr_metadata` table to retrieve the mmr_id
+    let mmr_id = sqlx::query_scalar::<_, String>(
+        "SELECT mmr_id FROM mmr_metadata LIMIT 1"
+    )
+    .fetch_optional(&pool)
+    .await?;
 
-    while let Some(block_hashes) = get_next_block_range(&db, start_block, batch_size).await? {
-        if block_hashes.is_empty() {
-            break; // Exit if no more blocks are available
-        }
+    let mmr_id = match mmr_id {
+        Some(id) => {
+            info!("Retrieved MMR ID from mmr_metadata: {}", id);
+            Some(id)
+        },
+        None => {
+            error!("No MMR ID found in mmr_metadata, using a new MMR ID.");
+            None // Generate a new MMR ID if none is found
+        },
+    };
 
-        let end_block = start_block + batch_size - 1;
-        println!("Processing blocks {} to {}", start_block, end_block);
+    // Initialize the SQLite store directly
+    let store = Arc::new(SQLiteStore::new(db_path, Some(true), None).await?);
 
-        // Create a new SQLite database file in `db-instances/` with an absolute path
-        let store_path = current_dir.join(format!("{}.db", db_file_counter));
-        let store_path_str = store_path.to_str().unwrap(); // Convert Path to &str
-        println!("Creating database file at: {}", store_path_str);
+    // Initialize the MMR with the store and Poseidon hasher
+    let hasher = Arc::new(StarkPoseidonHasher::new(Some(false)));
+    let mmr = MMR::new(store, hasher, mmr_id);
 
-        // If the file doesn't exist, create it manually
-        if !Path::new(store_path_str).exists() {
-            println!("Creating empty database file: {}", store_path_str);
-            File::create(store_path_str)?; // This ensures the file is created
-        }
+    // Log internal MMR state: element count, leaves count, and root hash
+    let elements_count = mmr.elements_count.get().await?;
+    let leaves_count = mmr.leaves_count.get().await?;
 
-        db_file_counter += 1; // Increment for the next batch
+    // Use SubKey::None for the root hash retrieval
+    let root_hash = mmr.root_hash.get(SubKey::None).await?;
 
-        // Ensure the SQLite database file can be created
-        let store_manager = StoreManager::new(store_path_str).await?;
-        let pool = SqlitePool::connect(store_path_str).await?;
-        let store = Arc::new(SQLiteStore::new(store_path_str, Some(true), None).await?);
-
-        // Initialize the MMR for this block range
-        let hasher = Arc::new(KeccakHasher::new());
-        let mut mmr = MMR::new(store, hasher, None);
-
-        // Append each block hash to the MMR
-        for hash in block_hashes.iter() {
-            let append_result = mmr.append(hash.clone()).await?;
-            store_manager
-                .insert_value_index_mapping(&pool, hash, append_result.element_index)
-                .await?;
-        }
-
-        // Move to the next batch of blocks
-        start_block += batch_size;
-    }
+    info!("MMR state:");
+    info!("Elements count: {}", elements_count);
+    info!("Leaves count: {}", leaves_count);
+    info!(
+        "Root hash: {}",
+        root_hash.unwrap_or_else(|| "None".to_string())
+    );
 
     Ok(())
-}
-
-// Fetch the next block range from the database
-async fn get_next_block_range(
-    db: &DbConnection,
-    start_block: i64,
-    batch_size: i64,
-) -> Result<Option<Vec<String>>, sqlx::Error> {
-    let end_block = start_block + batch_size - 1;
-    let block_hashes = get_block_hashes_by_block_range(&db.pool, start_block, end_block).await?;
-
-    if block_hashes.is_empty() {
-        Ok(None) // No more blocks to process
-    } else {
-        Ok(Some(block_hashes))
-    }
 }
