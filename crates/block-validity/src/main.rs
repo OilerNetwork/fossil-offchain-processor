@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let block_headers = get_block_headers_in_range(from_block, to_block).await?;
 
-    let all_valid = are_blocks_and_chain_valid(block_headers);
+    let all_valid = are_blocks_and_chain_valid(&block_headers);
     info!("Result: {}", all_valid);
 
     Ok(())

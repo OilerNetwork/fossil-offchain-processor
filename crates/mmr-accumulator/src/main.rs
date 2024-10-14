@@ -1,3 +1,5 @@
+mod ethereum;
+
 use accumulators::{
     hasher::stark_poseidon::StarkPoseidonHasher,
     mmr::MMR,
@@ -14,7 +16,7 @@ async fn main() -> Result<()> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    let db_path = "db-instances/1.db";
+    let db_path = "db-instances/0.db";
     let absolute_db_path = std::fs::canonicalize(db_path)?;
     info!("Using database file at: {}", absolute_db_path.display());
 

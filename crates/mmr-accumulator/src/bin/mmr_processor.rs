@@ -1,7 +1,9 @@
-use anyhow::Result;
-use db_access::DbConnection;
+use block_validity::utils::are_blocks_and_chain_valid;
+use db_access::rpc::get_block_headers_in_range; // Ensure BlockHeader is imported
+use eyre::{ContextCompat, Result}; // Import Result and Context for error handling
+use mmr_accumulator::ethereum::get_finalized_block_hash;
 use mmr_accumulator::processor_utils::*;
-use tracing::{error, info};
+use tracing::{error, info}; // Import the utility function to check chain validity
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -11,63 +13,47 @@ async fn main() -> Result<()> {
 
     info!("Starting MMR Processor");
 
-    let db = DbConnection::new().await?;
+    let (finalized_block_number, finalized_block_hash) = get_finalized_block_hash().await?;
 
-    // Define the block range and initialize the MMR
-    let batch_size = 1024;
-    let mut start_block = 1;
-    let mut batch_number = 1;
-    let mut db_file_counter = 0; // Start the file name counter from 0.db
+    // Fetch block headers in the range from finalized_block_number - 1024 to finalized_block_number
+    let start_block = finalized_block_number.saturating_sub(16);
+    let block_headers = get_block_headers_in_range(start_block, finalized_block_number).await?;
 
-    // Ensure the `db-instances/` directory exists
+    // Check that the fetched block hash matches the finalized one
+    let latest_block_hash = &block_headers
+        .last()
+        .context("No block headers fetched")?
+        .block_hash; // Assumes block_hash is a String
+
+    if latest_block_hash != &finalized_block_hash {
+        error!("Latest fetched block hash does not match the finalized block hash!");
+        return Err(eyre::eyre!("Block hash mismatch"));
+    }
+    info!("Latest block hash matches the finalized block hash.");
+
+    // Check the validity of the fetched block headers
+    let all_valid = are_blocks_and_chain_valid(&block_headers);
+    if !all_valid {
+        error!("Block headers are not valid.");
+        return Err(eyre::eyre!("Invalid block headers"));
+    }
+    info!("All fetched block headers are valid.");
+
+    // Initialize MMR
+    let db_file_counter = 0; // Start the file name counter from 0.db
     let current_dir = ensure_directory_exists("db-instances")?;
+    let store_path = create_database_file(&current_dir, db_file_counter)?;
+    let (store_manager, mut mmr, pool) = initialize_mmr(&store_path).await?;
 
-    while let Some(block_hashes) = get_next_block_range(&db, start_block, batch_size).await? {
-        if block_hashes.is_empty() {
-            info!("No more blocks to process");
-            break;
-        }
+    // Append each valid block hash to the MMR
+    for header in block_headers {
+        let block_hash = header.block_hash.clone();
+        info!("Appending block hash: {}", block_hash);
+        let append_result = mmr.append(block_hash.clone()).await?;
 
-        info!(
-            "Processing batch {}: blocks {} to {}",
-            batch_number,
-            start_block,
-            start_block + batch_size - 1
-        );
-
-        // Ensure the SQLite database file can be created
-        let store_path = create_database_file(&current_dir, db_file_counter)?;
-        let (store_manager, mut mmr, pool) = initialize_mmr(&store_path).await?;
-
-        let mut root_hash: Option<String> = None;
-
-        // Append each block hash to the MMR
-        for hash in block_hashes.iter() {
-            let append_result = mmr.append(hash.clone()).await?;
-
-            store_manager
-                .insert_value_index_mapping(&pool, hash, append_result.element_index)
-                .await?;
-
-            // Update the root hash for the current batch
-            root_hash = Some(append_result.root_hash.to_string());
-        }
-
-        // Log the batch number and the final root hash for this batch
-        if let Some(hash) = root_hash {
-            info!("Completed batch {}: root hash = {}", batch_number, hash);
-        } else {
-            error!("No root hash generated for batch {}", batch_number);
-        }
-
-        // Increment file counter and process the next block
-        db_file_counter += 1;
-        start_block += batch_size;
-        batch_number += 1;
-
-        if db_file_counter == 4 {
-            break;
-        }
+        store_manager
+            .insert_value_index_mapping(&pool, &block_hash, append_result.element_index)
+            .await?;
     }
 
     info!("MMR processing complete");

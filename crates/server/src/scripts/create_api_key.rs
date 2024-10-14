@@ -2,6 +2,7 @@ use std::env;
 
 use db_access::{auth::add_api_key, DbConnection};
 use uuid::Uuid;
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {
@@ -16,7 +17,7 @@ async fn main() -> Result<(), sqlx::Error> {
 
     add_api_key(&db.pool, api_key.clone(), name).await?;
 
-    println!("API Key: {}", api_key);
+    info!("API Key: {}", api_key);
 
     Ok(())
 }

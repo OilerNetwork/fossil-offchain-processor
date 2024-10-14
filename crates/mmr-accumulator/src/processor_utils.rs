@@ -2,8 +2,8 @@ use crate::store::StoreManager;
 use accumulators::{
     hasher::stark_poseidon::StarkPoseidonHasher, mmr::MMR, store::sqlite::SQLiteStore,
 };
-use anyhow::Result;
 use db_access::{queries::get_block_hashes_by_block_range, DbConnection};
+use eyre::Result;
 use sqlx::{Row, SqlitePool};
 use std::env;
 use std::fs::{self, File};

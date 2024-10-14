@@ -16,3 +16,22 @@ anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = "1.10.0"
+alloy = { version = "0.4.0", features = [
+    "full",
+    "node-bindings",
+    "rpc-types-debug",
+    "rpc-types-trace",
+    "json-rpc",
+    "rpc-client",
+    "signer-aws",
+    "signer-keystore",
+    "signer-ledger",
+    "signer-mnemonic",
+    "signer-trezor",
+    "signer-yubihsm",
+] }
+dotenv = "0.15.0"
+serde_json = "1.0"
+eyre = "0.6"
+alloy-network-primitives = "0.4"
+eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git" }
