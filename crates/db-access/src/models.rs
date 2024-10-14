@@ -90,21 +90,21 @@ pub fn temp_to_block_header(temp: TempBlockHeader) -> EthBlockHeader {
         miner: temp.miner,             // Option<String> (if exists)
 
         // For the following, use Option<String> correctly
-        logs_bloom: Some(temp.logs_bloom.unwrap_or_else(|| "".to_string())),
+        logs_bloom: Some(temp.logs_bloom.unwrap_or_default()),
         difficulty: Some(temp.difficulty.unwrap_or_else(|| "0x0".to_string())),
         totaldifficulty: Some(temp.totaldifficulty.unwrap_or_else(|| "0x0".to_string())),
         sha3_uncles: temp.sha3_uncles, // Option<String> (if exists)
 
         // Convert timestamp from Option<i64> to Option<String>
         timestamp: temp.timestamp.map(|ts| format!("0x{:x}", ts)), // Convert i64 to hex string
-        extra_data: Some(temp.extra_data.unwrap_or_else(|| "".to_string())),
-        mix_hash: Some(temp.mix_hash.unwrap_or_else(|| "".to_string())),
-        withdrawals_root: Some(temp.withdrawals_root.unwrap_or_else(|| "".to_string())),
-        blob_gas_used: Some(temp.blob_gas_used.unwrap_or_else(|| "".to_string())),
-        excess_blob_gas: Some(temp.excess_blob_gas.unwrap_or_else(|| "".to_string())),
+        extra_data: Some(temp.extra_data.unwrap_or_default()),
+        mix_hash: Some(temp.mix_hash.unwrap_or_default()),
+        withdrawals_root: Some(temp.withdrawals_root.unwrap_or_default()),
+        blob_gas_used: Some(temp.blob_gas_used.unwrap_or_default()),
+        excess_blob_gas: Some(temp.excess_blob_gas.unwrap_or_default()),
         parent_beacon_block_root: Some(
             temp.parent_beacon_block_root
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
         ),
     }
 }
