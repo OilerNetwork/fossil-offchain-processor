@@ -2,7 +2,7 @@ use eth_rlp_verify::block_header::BlockHeader;
 use eth_rlp_verify::verify_block;
 use tracing::{error, info};
 
-pub fn are_blocks_and_chain_valid(block_headers: &Vec<BlockHeader>) -> bool {
+pub fn are_blocks_and_chain_valid(block_headers: &[BlockHeader]) -> bool {
     for (i, block) in block_headers.iter().enumerate() {
         let block_hash = block.block_hash.clone();
         let parent_hash = block.parent_hash.clone().unwrap_or_default();
