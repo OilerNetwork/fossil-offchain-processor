@@ -1,4 +1,4 @@
-use anyhow::Result;
+use eyre::Result;
 use axum::{
     middleware::from_fn_with_state,
     routing::{get, post},

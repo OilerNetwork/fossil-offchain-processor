@@ -1,4 +1,4 @@
-use anyhow::Error;
+use eyre::Error;
 use db_access::models::BlockHeader;
 
 use super::utils::hex_string_to_f64;

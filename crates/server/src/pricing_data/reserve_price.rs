@@ -1,7 +1,7 @@
 use db_access::models::BlockHeader;
 
 use super::utils::hex_string_to_f64;
-use anyhow::{anyhow as err, Error};
+use eyre::{anyhow as err, Error};
 use chrono::prelude::*;
 use linfa::prelude::*;
 use linfa::traits::Fit;

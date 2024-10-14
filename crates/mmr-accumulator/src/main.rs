@@ -5,7 +5,7 @@ use accumulators::{
     mmr::MMR,
     store::{sqlite::SQLiteStore, SubKey},
 };
-use anyhow::Result;
+use eyre::Result;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use tracing::{error, info};
