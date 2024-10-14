@@ -1,8 +1,8 @@
 use std::env;
 
 use db_access::{auth::add_api_key, DbConnection};
-use uuid::Uuid;
 use tracing::info;
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {

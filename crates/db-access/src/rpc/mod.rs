@@ -3,10 +3,10 @@ mod utils;
 use crate::rpc::utils::json_to_block_header;
 use dotenv::dotenv;
 use eth_rlp_verify::block_header::BlockHeader;
+use eyre::Result;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::env;
-use eyre::Result;
 use tracing::info;
 
 pub async fn get_block_by_number(block_number: u64) -> Result<BlockHeader> {

@@ -3,6 +3,8 @@ name = "block-validity"
 version = "0.1.0"
 edition = "2021"
 
+default-run = "block-validity"
+
 [dependencies]
 db-access = { path = "../db-access" }
 eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git" }

@@ -1,3 +1,5 @@
+use eth_rlp_verify::block_header::BlockHeader as EthBlockHeader;
+
 #[derive(sqlx::FromRow, Debug)]
 pub struct BlockHeader {
     pub block_hash: Option<String>,
@@ -38,4 +40,71 @@ pub struct BlockHeaderSubset {
 pub struct ApiKey {
     pub key: String,
     pub name: Option<String>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct TempBlockHeader {
+    pub block_hash: String,
+    pub number: i64,
+    pub gas_limit: i64,
+    pub gas_used: i64,
+    pub nonce: String,
+    pub transaction_root: Option<String>,
+    pub receipts_root: Option<String>,
+    pub state_root: Option<String>,
+    pub base_fee_per_gas: Option<String>,
+    pub parent_hash: Option<String>,
+    pub miner: Option<String>,
+    pub logs_bloom: Option<String>,
+    pub difficulty: Option<String>,
+    pub totaldifficulty: Option<String>,
+    pub sha3_uncles: Option<String>,
+    pub timestamp: Option<i64>, // Assuming this is stored as bigint
+    pub extra_data: Option<String>,
+    pub mix_hash: Option<String>,
+    pub withdrawals_root: Option<String>,
+    pub blob_gas_used: Option<String>,
+    pub excess_blob_gas: Option<String>,
+    pub parent_beacon_block_root: Option<String>,
+}
+
+// fn parse_hex_to_i64(hex_str: &str) -> Option<i64> {
+//     i64::from_str_radix(hex_str.trim_start_matches("0x"), 16).ok()
+// }
+
+pub fn temp_to_block_header(temp: TempBlockHeader) -> EthBlockHeader {
+    EthBlockHeader {
+        block_hash: temp.block_hash,             // String (not Option<String>)
+        number: temp.number,                     // i64 (not Option<i64>)
+        gas_limit: temp.gas_limit,               // i64 (not Option<i64>)
+        gas_used: temp.gas_used,                 // i64 (not Option<i64>)
+        nonce: temp.nonce,                       // String (not Option<String>)
+        transaction_root: temp.transaction_root, // Option<String>
+        receipts_root: temp.receipts_root,       // Option<String>
+        state_root: temp.state_root,             // Option<String>
+        base_fee_per_gas: temp.base_fee_per_gas, // Option<String>
+
+        // Only assign fields that exist in EthBlockHeader
+        parent_hash: temp.parent_hash, // Option<String> (if exists)
+        ommers_hash: temp.sha3_uncles.clone(), // Option<String> (if exists)
+        miner: temp.miner,             // Option<String> (if exists)
+
+        // For the following, use Option<String> correctly
+        logs_bloom: Some(temp.logs_bloom.unwrap_or_else(|| "".to_string())),
+        difficulty: Some(temp.difficulty.unwrap_or_else(|| "0x0".to_string())),
+        totaldifficulty: Some(temp.totaldifficulty.unwrap_or_else(|| "0x0".to_string())),
+        sha3_uncles: temp.sha3_uncles, // Option<String> (if exists)
+
+        // Convert timestamp from Option<i64> to Option<String>
+        timestamp: temp.timestamp.map(|ts| format!("0x{:x}", ts)), // Convert i64 to hex string
+        extra_data: Some(temp.extra_data.unwrap_or_else(|| "".to_string())),
+        mix_hash: Some(temp.mix_hash.unwrap_or_else(|| "".to_string())),
+        withdrawals_root: Some(temp.withdrawals_root.unwrap_or_else(|| "".to_string())),
+        blob_gas_used: Some(temp.blob_gas_used.unwrap_or_else(|| "".to_string())),
+        excess_blob_gas: Some(temp.excess_blob_gas.unwrap_or_else(|| "".to_string())),
+        parent_beacon_block_root: Some(
+            temp.parent_beacon_block_root
+                .unwrap_or_else(|| "".to_string()),
+        ),
+    }
 }

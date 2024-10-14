@@ -1,7 +1,10 @@
 use sqlx::{types::BigDecimal, Error, PgPool};
 
-use crate::models::{BlockHeader, BlockHeaderSubset, Transaction};
-
+use crate::models::temp_to_block_header;
+use crate::models::{
+    BlockHeader as DbBlockHeader, BlockHeaderSubset, TempBlockHeader, Transaction,
+};
+use eth_rlp_verify::block_header::BlockHeader;
 pub async fn get_transactions_by_block_number(
     pool: &PgPool,
     block_number: i64,
@@ -133,9 +136,9 @@ pub async fn get_twap_and_volatility(
 pub async fn get_block_by_number(
     pool: &PgPool,
     block_number: i64,
-) -> Result<Option<BlockHeader>, Error> {
-    let block = sqlx::query_as!(
-        BlockHeader,
+) -> Result<Option<DbBlockHeader>, Error> {
+    let block: Option<DbBlockHeader> = sqlx::query_as!(
+        DbBlockHeader,
         r#"
         SELECT 
             block_hash, 
@@ -163,9 +166,9 @@ pub async fn get_block_headers_by_time_range(
     pool: &PgPool,
     start_timestamp: i64,
     end_timestamp: i64,
-) -> Result<Vec<BlockHeader>, Error> {
+) -> Result<Vec<DbBlockHeader>, Error> {
     let headers = sqlx::query_as!(
-        BlockHeader,
+        DbBlockHeader,
         r#"
         SELECT 
             block_hash, 
@@ -209,4 +212,34 @@ pub async fn get_block_hashes_by_block_range(
     .await?;
 
     Ok(block_hashes)
+}
+
+pub async fn get_block_headers_by_block_range(
+    pool: &PgPool,
+    start_block: i64,
+    end_block: i64,
+) -> Result<Vec<BlockHeader>, Error> {
+    let temp_headers = sqlx::query_as!(
+        TempBlockHeader,
+        r#"
+        SELECT block_hash, number, gas_limit, gas_used, nonce, 
+               transaction_root, receipts_root, state_root, 
+               base_fee_per_gas, parent_hash, miner, logs_bloom, 
+               difficulty, totaldifficulty, sha3_uncles, "timestamp", 
+               extra_data, mix_hash, withdrawals_root, 
+               blob_gas_used, excess_blob_gas, parent_beacon_block_root
+        FROM blockheaders
+        WHERE number BETWEEN $1 AND $2
+        ORDER BY number ASC
+        "#,
+        start_block,
+        end_block
+    )
+    .fetch_all(pool)
+    .await?;
+
+    // Convert TempBlockHeader to BlockHeader
+    let headers: Vec<BlockHeader> = temp_headers.into_iter().map(temp_to_block_header).collect();
+
+    Ok(headers)
 }
