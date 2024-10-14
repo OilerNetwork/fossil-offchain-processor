@@ -1,10 +1,10 @@
-use eyre::Result;
 use axum::{
     middleware::from_fn_with_state,
     routing::{get, post},
     Router,
 };
 use db_access::DbConnection;
+use eyre::Result;
 use server::{handlers, middlewares::auth::simple_apikey_auth};
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};

@@ -102,9 +102,6 @@ pub fn temp_to_block_header(temp: TempBlockHeader) -> EthBlockHeader {
         withdrawals_root: Some(temp.withdrawals_root.unwrap_or_default()),
         blob_gas_used: Some(temp.blob_gas_used.unwrap_or_default()),
         excess_blob_gas: Some(temp.excess_blob_gas.unwrap_or_default()),
-        parent_beacon_block_root: Some(
-            temp.parent_beacon_block_root
-                .unwrap_or_default(),
-        ),
+        parent_beacon_block_root: Some(temp.parent_beacon_block_root.unwrap_or_default()),
     }
 }

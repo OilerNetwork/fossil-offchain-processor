@@ -1,5 +1,5 @@
-use eyre::{anyhow, Error};
 use db_access::models::BlockHeader;
+use eyre::{anyhow, Error};
 
 use super::utils::hex_string_to_f64;
 

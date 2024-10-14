@@ -1,8 +1,8 @@
 use db_access::models::BlockHeader;
 
 use super::utils::hex_string_to_f64;
-use eyre::{anyhow as err, Error};
 use chrono::prelude::*;
+use eyre::{anyhow as err, Error};
 use linfa::prelude::*;
 use linfa::traits::Fit;
 use linfa_linear::{FittedLinearRegression, LinearRegression};
