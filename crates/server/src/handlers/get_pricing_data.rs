@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use starknet_crypto::{poseidon_hash_single, Felt};
 use tokio::{join, time::Instant};
 
-use crate::pricing_data::{
+use crate::{pricing_data::{
     reserve_price::calculate_reserve_price, twap::calculate_twap, volatility::calculate_volatility,
-};
+}, starknet_callback::callback::FossilStarknetAccount};
 
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Deserialize, Serialize)]
@@ -68,6 +68,8 @@ pub async fn get_pricing_data(
 
     // TODO: Is there anyway to extract this async section?
     tokio::spawn(async move {
+        let fossil_account = FossilStarknetAccount::new();
+        
         let block_headers_for_calculations = join!(
             get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),
             get_block_headers_by_time_range(
