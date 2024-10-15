@@ -16,10 +16,7 @@ use uuid::Uuid;
 pub fn ensure_directory_exists(dir_name: &str) -> Result<PathBuf> {
     let current_dir = env::current_dir()?.join(dir_name);
     if !current_dir.exists() {
-        info!("Creating directory: {}", current_dir.display());
         fs::create_dir_all(&current_dir)?; // Ensure directory is created
-    } else {
-        info!("Directory already exists: {}", current_dir.display());
     }
     Ok(current_dir)
 }
@@ -30,7 +27,6 @@ pub fn create_database_file(current_dir: &Path, db_file_counter: usize) -> Resul
     let store_path_str = store_path.to_str().unwrap();
 
     if !Path::new(store_path_str).exists() {
-        info!("Creating empty database file: {}", store_path_str);
         File::create(store_path_str)?; // Ensure the file is created
     }
 

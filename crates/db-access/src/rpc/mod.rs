@@ -51,8 +51,6 @@ pub async fn get_block_headers_in_range(
 
     info!("Fetching block headers from {} to {}", from_block, to_block);
 
-    let mut fetched_block_count = 0;
-
     for block_number in from_block..=to_block {
         let block = format!("0x{:x}", block_number);
 
@@ -76,10 +74,6 @@ pub async fn get_block_headers_in_range(
         if result["result"].is_object() {
             let block_header = json_to_block_header(&result["result"]);
             block_headers.push(block_header);
-            fetched_block_count += 1;
-        }
-        if fetched_block_count % 64 == 0 && fetched_block_count != 0 {
-            info!("Fetched {} block headers", fetched_block_count);
         }
     }
 
