@@ -12,5 +12,7 @@ eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git" }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.16"
 tokio = { version = "1.36.0", features = ["full"] }
+serde = "1.0.182"
+serde_json = "1.0.101"
 
 

@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use std::env;
 use tracing::info;
 
+#[allow(dead_code)]
 pub async fn get_block_by_number(block_number: u64) -> Result<BlockHeader> {
     dotenv().ok();
 

@@ -1570,6 +1570,8 @@ version = "0.1.0"
 dependencies = [
  "db-access",
  "eth-rlp-verify",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2420,7 +2422,7 @@ dependencies = [
 [[package]]
 name = "eth-rlp-verify"
 version = "0.1.0"
-source = "git+https://github.com/ametel01/eth-rlp-verify.git#6feec3b439ca049287310adf3ebdcf3b9ddd432e"
+source = "git+https://github.com/ametel01/eth-rlp-verify.git#ff4fb171cfb0244a4fefa662d86ef8905cd9fdc0"
 dependencies = [
  "clap",
  "dotenv",
