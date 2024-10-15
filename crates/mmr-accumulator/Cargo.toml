@@ -34,3 +34,5 @@ serde_json = "1.0"
 eyre = "0.6"
 alloy-network-primitives = "0.4"
 eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git" }
+thiserror = "1.0"
+reqwest = "0.12.5"
