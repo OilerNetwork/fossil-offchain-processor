@@ -5,6 +5,7 @@ use axum::{
 };
 use db_access::{DbConnection, queries::get_job_request};
 use serde::Serialize;
+use serde_json::json;
 
 #[derive(Serialize)]
 pub struct JobStatusResponse {
@@ -12,16 +13,34 @@ pub struct JobStatusResponse {
     status: String,
 }
 
+#[derive(Serialize)]
+struct ErrorResponse {
+    error: String,
+}
+
 pub async fn get_job_status(
     State(db): State<DbConnection>,
     Path(job_id): Path<String>,
-) -> Result<Json<JobStatusResponse>, (StatusCode, String)> {
+) -> (StatusCode, Json<serde_json::Value>) {
     match get_job_request(&db.pool, &job_id).await {
-        Ok(Some(job)) => Ok(Json(JobStatusResponse {
-            job_id: job.job_id,
-            status: job.status.as_str().to_string(),
-        })),
-        Ok(None) => Err((StatusCode::NOT_FOUND, "Job not found".to_string())),
-        Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, "Database error".to_string())),
+        Ok(Some(job)) => (
+            StatusCode::OK,
+            Json(json!(JobStatusResponse {
+                job_id: job.job_id,
+                status: job.status.as_str().to_string(),
+            }))
+        ),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!(ErrorResponse {
+                error: "Job not found".to_string(),
+            }))
+        ),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!(ErrorResponse {
+                error: "An error occurred while processing the request.".to_string(),
+            }))
+        ),
     }
 }
