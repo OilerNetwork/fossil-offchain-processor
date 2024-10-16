@@ -34,10 +34,6 @@ async fn main() -> Result<()> {
             post(handlers::get_pricing_data::get_pricing_data)
                 .layer(from_fn_with_state(db.clone(), simple_apikey_auth)),
         )
-        .route(
-            "/callback_test",
-            post(handlers::pricing_callback::pricing_callback),
-        )
         .with_state(db);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
