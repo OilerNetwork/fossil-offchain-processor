@@ -1,7 +1,6 @@
 pub mod auth;
 pub mod models;
 pub mod queries;
-pub mod rpc;
 
 use dotenv::dotenv;
 use sqlx::postgres::PgPool;
