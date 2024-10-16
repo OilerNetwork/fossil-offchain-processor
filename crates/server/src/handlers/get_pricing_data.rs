@@ -32,6 +32,7 @@ pub struct PitchLakeJobRequest {
 pub struct JobResponse {
     job_id: String,
     message: String,
+    status_url: String,
 }
 
 pub async fn get_pricing_data(
@@ -51,6 +52,7 @@ pub async fn get_pricing_data(
                     job_id: job_id.clone(),
                     message: "Job is already pending. Use the status endpoint to monitor progress."
                         .to_string(),
+                    status_url: format!("/job_status/{}", job_id),
                 }),
             ),
             JobStatus::Completed => (
@@ -59,6 +61,7 @@ pub async fn get_pricing_data(
                     job_id: job_id.clone(),
                     message: "Job has already been completed. No further processing required."
                         .to_string(),
+                    status_url: format!("/job_status/{}", job_id),
                 }),
             ),
             JobStatus::Failed => {
@@ -67,6 +70,7 @@ pub async fn get_pricing_data(
                     return (StatusCode::INTERNAL_SERVER_ERROR, Json(JobResponse {
                         job_id: job_id.clone(),
                         message: "Previous job request failed. An error occurred while updating job status.".to_string(),
+                        status_url: format!("/job_status/{}", job_id),
                     }));
                 }
                 tokio::spawn(process_job(db.clone(), job_id.clone(), payload));
@@ -76,6 +80,7 @@ pub async fn get_pricing_data(
                     Json(JobResponse {
                         job_id: job_id.clone(),
                         message: "Previous job request failed. Reprocessing initiated.".to_string(),
+                        status_url: format!("/job_status/{}", job_id),
                     }),
                 )
             }
@@ -88,6 +93,7 @@ pub async fn get_pricing_data(
                     Json(JobResponse {
                         job_id: job_id.clone(),
                         message: "An error occurred while creating the job.".to_string(),
+                        status_url: format!("/job_status/{}", job_id),
                     }),
                 );
             }
@@ -98,6 +104,7 @@ pub async fn get_pricing_data(
                 Json(JobResponse {
                     job_id: job_id.clone(),
                     message: "New job request registered and processing initiated.".to_string(),
+                    status_url: format!("/job_status/{}", job_id),
                 }),
             )
         }
@@ -106,6 +113,7 @@ pub async fn get_pricing_data(
             Json(JobResponse {
                 job_id: job_id.clone(),
                 message: "An error occurred while processing the request.".to_string(),
+                status_url: format!("/job_status/{}", job_id),
             }),
         ),
     }

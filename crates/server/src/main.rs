@@ -30,6 +30,11 @@ async fn main() -> Result<()> {
         )
         .route("/", get(handlers::root::root))
         .route(
+            "/job_status/:job_id",
+            get(handlers::job_status::get_job_status)
+                .layer(from_fn_with_state(db.clone(), simple_apikey_auth)),
+        )
+        .route(
             "/pricing_data",
             post(handlers::get_pricing_data::get_pricing_data)
                 .layer(from_fn_with_state(db.clone(), simple_apikey_auth)),
