@@ -32,63 +32,20 @@ pub fn json_to_block_header(block_result: &Value) -> BlockHeader {
         parent_hash: block_result["parentHash"].as_str().map(|s| s.to_string()),
         ommers_hash: block_result["sha3Uncles"].as_str().map(|s| s.to_string()),
         miner: block_result["miner"].as_str().map(|s| s.to_string()),
-
-        // Wrap in Some for Option<String>
-        logs_bloom: Some(
-            block_result["logsBloom"]
-                .as_str()
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-        ), // Default to an empty bloom if not present
-        difficulty: Some(
-            block_result["difficulty"]
-                .as_str()
-                .map(|s| s.to_string())
-                .unwrap_or("0x0".to_string()),
-        ), // Default to "0x0"
-        totaldifficulty: Some(
-            block_result["totalDifficulty"]
-                .as_str()
-                .map(|s| s.to_string())
-                .unwrap_or("0x0".to_string()),
-        ), // Default to "0x0"
+        logs_bloom: block_result["logsBloom"].as_str().map(|s| s.to_string()),
+        difficulty: block_result["difficulty"].as_str().map(|s| s.to_string()),
+        totaldifficulty: block_result["totalDifficulty"]
+            .as_str()
+            .map(|s| s.to_string()),
         sha3_uncles: block_result["sha3Uncles"].as_str().map(|s| s.to_string()),
-        timestamp: block_result["timestamp"].as_str().map(|s| s.to_string()), // Option<String>
-        extra_data: Some(
-            block_result["extraData"]
-                .as_str()
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-        ), // Default to an empty string if not present
-        mix_hash: Some(
-            block_result["mixHash"]
-                .as_str()
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-        ), // Default to an empty string if not present
-        withdrawals_root: Some(
-            block_result["withdrawalsRoot"]
-                .as_str()
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-        ), // Default to an empty string if not present
-        blob_gas_used: Some(
-            block_result["blobGasUsed"]
-                .as_str()
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-        ), // Default to an empty string if not present
-        excess_blob_gas: Some(
-            block_result["excessBlobGas"]
-                .as_str()
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-        ), // Default to an empty string if not present
-        parent_beacon_block_root: Some(
-            block_result["parentBeaconBlockRoot"]
-                .as_str()
-                .map(|s| s.to_string())
-                .unwrap_or_default(),
-        ), // Default to an empty string if not present
+        timestamp: block_result["timestamp"].as_str().map(|s| s.to_string()),
+        extra_data: block_result["extraData"].as_str().map(|s| s.to_string()),
+        mix_hash: block_result["mixHash"].as_str().map(|s| s.to_string()),
+        withdrawals_root: block_result["withdrawalsRoot"]
+            .as_str()
+            .map(|s| s.to_string()),
+        blob_gas_used: None,
+        excess_blob_gas: None,
+        parent_beacon_block_root: None,
     }
 }

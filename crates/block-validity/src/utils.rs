@@ -1,15 +1,14 @@
 use eth_rlp_verify::block_header::BlockHeader;
 use eth_rlp_verify::verify_block;
-use tracing::error;
+use tracing::{error, info};
 
-pub fn are_blocks_and_chain_valid(block_headers: &[BlockHeader]) -> bool {
+pub fn are_blocks_and_chain_valid(block_headers: Vec<BlockHeader>) -> bool {
     for (i, block) in block_headers.iter().enumerate() {
         let block_hash = block.block_hash.clone();
         let parent_hash = block.parent_hash.clone().unwrap_or_default();
         let block_number = block.number;
 
-        // Dereference `block` to pass it as a `BlockHeader`
-        let is_valid = verify_block(block_number as u64, block.clone(), &block_hash);
+        let is_valid = verify_block(block_number as u64, block, &block_hash);
 
         if !is_valid {
             error!("Block {} is invalid (hash: {})", block_number, block_hash);
@@ -27,8 +26,16 @@ pub fn are_blocks_and_chain_valid(block_headers: &[BlockHeader]) -> bool {
                 );
                 return false;
             }
+
+            info!(
+                "Block {} is valid and links to parent {}",
+                block_number, previous_block.number
+            );
+        } else {
+            info!("Block {} is valid", block_number);
         }
     }
 
+    info!("All blocks and the chain are valid");
     true
 }
