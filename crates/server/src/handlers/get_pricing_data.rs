@@ -66,10 +66,10 @@ pub async fn get_pricing_data(
             ),
             JobStatus::Failed => {
                 // Reprocess the failed job
-                if let Err(_) = update_job_status(&db.pool, &job_id, JobStatus::Pending).await {
+                if let Err(e) = update_job_status(&db.pool, &job_id, JobStatus::Pending).await {
                     return (StatusCode::INTERNAL_SERVER_ERROR, Json(JobResponse {
                         job_id: job_id.clone(),
-                        message: "Previous job request failed. An error occurred while updating job status.".to_string(),
+                        message: format!("Previous job request failed. An error occurred while updating job status: {}", e).to_string(),
                         status_url: format!("/job_status/{}", job_id),
                     }));
                 }
@@ -87,12 +87,12 @@ pub async fn get_pricing_data(
         },
         Ok(None) => {
             // New job
-            if let Err(_) = create_job_request(&db.pool, &job_id, JobStatus::Pending).await {
+            if let Err(e) = create_job_request(&db.pool, &job_id, JobStatus::Pending).await {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(JobResponse {
                         job_id: job_id.clone(),
-                        message: "An error occurred while creating the job.".to_string(),
+                        message: format!("An error occurred while creating the job: {}", e).to_string(),
                         status_url: format!("/job_status/{}", job_id),
                     }),
                 );
@@ -108,11 +108,11 @@ pub async fn get_pricing_data(
                 }),
             )
         }
-        Err(_) => (
+        Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(JobResponse {
                 job_id: job_id.clone(),
-                message: "An error occurred while processing the request.".to_string(),
+                message: format!("An error occurred while processing the request: {}", e).to_string(),
                 status_url: format!("/job_status/{}", job_id),
             }),
         ),

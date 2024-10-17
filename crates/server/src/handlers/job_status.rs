@@ -36,10 +36,10 @@ pub async fn get_job_status(
                 error: "Job not found".to_string(),
             })),
         ),
-        Err(_) => (
+        Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!(ErrorResponse {
-                error: "An error occurred while processing the request.".to_string(),
+                error: format!("An error occurred while processing the request: {}", e).to_string(),
             })),
         ),
     }
