@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use db_access::{DbConnection, queries::get_job_request};
+use db_access::{queries::get_job_request, DbConnection};
 use serde::Serialize;
 use serde_json::json;
 
@@ -28,19 +28,19 @@ pub async fn get_job_status(
             Json(json!(JobStatusResponse {
                 job_id: job.job_id,
                 status: job.status.as_str().to_string(),
-            }))
+            })),
         ),
         Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(json!(ErrorResponse {
                 error: "Job not found".to_string(),
-            }))
+            })),
         ),
         Err(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!(ErrorResponse {
                 error: "An error occurred while processing the request.".to_string(),
-            }))
+            })),
         ),
     }
 }
