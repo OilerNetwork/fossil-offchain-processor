@@ -92,7 +92,8 @@ pub async fn get_pricing_data(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(JobResponse {
                         job_id: job_id.clone(),
-                        message: format!("An error occurred while creating the job: {}", e).to_string(),
+                        message: format!("An error occurred while creating the job: {}", e)
+                            .to_string(),
                         status_url: format!("/job_status/{}", job_id),
                     }),
                 );
@@ -112,7 +113,8 @@ pub async fn get_pricing_data(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(JobResponse {
                 job_id: job_id.clone(),
-                message: format!("An error occurred while processing the request: {}", e).to_string(),
+                message: format!("An error occurred while processing the request: {}", e)
+                    .to_string(),
                 status_url: format!("/job_status/{}", job_id),
             }),
         ),
