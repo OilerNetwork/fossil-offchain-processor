@@ -1,6 +1,6 @@
 use sqlx::{types::BigDecimal, Error, PgPool};
 
-use crate::models::{BlockHeader, BlockHeaderSubset, Transaction};
+use crate::models::{BlockHeader, BlockHeaderSubset, JobRequest, JobStatus, Transaction};
 
 pub async fn get_transactions_by_block_number(
     pool: &PgPool,
@@ -189,4 +189,59 @@ pub async fn get_block_headers_by_time_range(
     .await?;
 
     Ok(headers)
+}
+
+pub async fn create_job_request(
+    pool: &PgPool,
+    job_id: &str,
+    status: JobStatus,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        INSERT INTO job_requests (job_id, status) VALUES ($1, $2)
+        "#,
+        job_id,
+        status.as_str()
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_job_request(
+    pool: &PgPool,
+    job_id: &str,
+) -> Result<Option<JobRequest>, sqlx::Error> {
+    sqlx::query_as!(
+        JobRequest,
+        r#"
+        SELECT job_id, status as "status: JobStatus"
+        FROM job_requests
+        WHERE job_id = $1
+        "#,
+        job_id
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn update_job_status(
+    pool: &PgPool,
+    job_id: &str,
+    status: JobStatus,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        UPDATE job_requests
+        SET status = $1
+        WHERE job_id = $2
+        "#,
+        status.as_str(),
+        job_id
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
