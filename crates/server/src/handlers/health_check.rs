@@ -1,4 +1,6 @@
-pub async fn root() -> &'static str {
+pub async fn health_check() -> &'static str {
+    // TODO: should actually also check db connection and more
+    // right now its essentially a liveness check.
     "OK"
 }
 
@@ -11,7 +13,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_root() {
-        let app = Router::new().route("/", get(root));
+        let app = Router::new().route("/", get(health_check));
         let server = TestServer::new(app).unwrap();
 
         let response = server.get("/").await;
