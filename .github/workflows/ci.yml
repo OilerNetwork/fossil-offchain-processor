@@ -20,23 +20,45 @@ jobs:
       - name: Install required dependencies
         run: sudo apt update && sudo apt install libomp-dev libopenblas-dev
       - uses: actions/checkout@v4
+
+      # Set up Rust toolchain
       - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
+
+      # Use the DATABASE_URL secret in CI environment
+      - name: Set DATABASE_URL environment variable
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}  # Use the secret stored in GitHub Actions
+        run: echo "DATABASE_URL is set"
+
+      # Build the project
       - name: Build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}  # Pass the DATABASE_URL for SQLx to use
         run: cargo build --workspace --all-targets
+
+      # Run tests
       - name: Test
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}  # Pass the DATABASE_URL for SQLx to use
         run: cargo test --workspace --all-targets
 
   lint-rust:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain:
-          - stable
-          - beta
-          - nightly
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set DATABASE_URL environment variable for linting
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}  # Use the secret for online mode
+        run: echo "DATABASE_URL is set"
+
       - name: Run fmt
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: cargo fmt --all -- --check
+      
       - name: Run clippy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: cargo clippy --workspace -- -D warnings
+

@@ -1,8 +1,8 @@
 use db_access::models::BlockHeader;
 
 use super::utils::hex_string_to_f64;
-use anyhow::{anyhow as err, Error};
 use chrono::prelude::*;
+use eyre::{anyhow as err, Result};
 use linfa::prelude::*;
 use linfa::traits::Fit;
 use linfa_linear::{FittedLinearRegression, LinearRegression};
@@ -17,7 +17,7 @@ use rand_distr::Distribution;
 use statrs::distribution::Binomial;
 use std::f64::consts::PI;
 
-pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64, Error> {
+pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64> {
     // Create a DataFrame from block_headers
     let mut timestamps: Vec<i64> = Vec::new();
     let mut base_fees: Vec<f64> = Vec::new();
@@ -222,7 +222,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 fn remove_seasonality(
     df: &mut DataFrame,
     start_date_timestamp: i64,
-) -> Result<(Array1<f64>, Array1<f64>), Error> {
+) -> Result<(Array1<f64>, Array1<f64>)> {
     let start_date = DateTime::from_timestamp(start_date_timestamp / 1000, 0)
         .ok_or_else(|| err!("Can't calculate the start date"))?;
 
@@ -279,7 +279,7 @@ fn simulate_prices(
     de_seasonalised_detrended_log_base_fee: ArrayView1<f64>,
     n_periods: usize,
     num_paths: usize,
-) -> Result<(Array2<f64>, Vec<f64>), Error> {
+) -> Result<(Array2<f64>, Vec<f64>)> {
     let dt = 1.0 / (365.0 * 24.0);
     let pt = de_seasonalised_detrended_log_base_fee
         .slice(s![1..])
@@ -362,7 +362,7 @@ fn simulate_prices(
 /// Returns an Error if:
 /// * The 'log_base_fee' column cannot be accessed or converted to f64.
 /// * The linear regression model fails to fit.
-fn discover_trend(df: &DataFrame) -> Result<(FittedLinearRegression<f64>, Vec<f64>), Error> {
+fn discover_trend(df: &DataFrame) -> Result<(FittedLinearRegression<f64>, Vec<f64>)> {
     let time_index: Vec<f64> = (0..df.height() as i64).map(|i| i as f64).collect();
 
     let ones = Array::<f64, Ix1>::ones(df.height());
@@ -386,7 +386,7 @@ fn discover_trend(df: &DataFrame) -> Result<(FittedLinearRegression<f64>, Vec<f6
 }
 
 // Computes the natural logarithm of 'base_fee' values
-fn compute_log_of_base_fees(df: &DataFrame) -> Result<Vec<f64>, Error> {
+fn compute_log_of_base_fees(df: &DataFrame) -> Result<Vec<f64>> {
     let log_base_fees: Vec<f64> = df
         .column("base_fee")?
         .f64()?
@@ -397,7 +397,7 @@ fn compute_log_of_base_fees(df: &DataFrame) -> Result<Vec<f64>, Error> {
 }
 
 // Removes rows with null values in the specified column and returns a new DataFrame
-fn drop_nulls(df: &DataFrame, column_name: &str) -> Result<DataFrame, Error> {
+fn drop_nulls(df: &DataFrame, column_name: &str) -> Result<DataFrame> {
     let df = df
         .clone()
         .lazy()
@@ -570,7 +570,7 @@ fn neg_log_likelihood(params: &[f64], pt: &Array1<f64>, pt_1: &Array1<f64>) -> f
 /// * The rolling mean calculation fails.
 /// * The final collection of the lazy DataFrame fails.
 ///
-fn add_twap_7d(df: DataFrame) -> Result<DataFrame, Error> {
+fn add_twap_7d(df: DataFrame) -> Result<DataFrame> {
     let df = df
         .lazy()
         .with_column(
@@ -608,7 +608,7 @@ fn add_twap_7d(df: DataFrame) -> Result<DataFrame, Error> {
 /// * The grouping or aggregation operations fail.
 /// * The final collection of the lazy DataFrame fails.
 ///
-fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame, Error> {
+fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
     let df = df
         .lazy()
         .group_by_dynamic(
@@ -649,7 +649,7 @@ fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame, Error> {
 /// * The conversion to milliseconds or casting to datetime fails.
 /// * The column replacement or renaming operations fail.
 ///
-fn replace_timestamp_with_date(mut df: DataFrame) -> Result<DataFrame, Error> {
+fn replace_timestamp_with_date(mut df: DataFrame) -> Result<DataFrame> {
     let dates = df
         .column("timestamp")?
         .i64()?

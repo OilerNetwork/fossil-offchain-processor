@@ -6,3 +6,31 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+block-validity = { path = "../block-validity" }
+db-access = { path = "../db-access" }
+
+accumulators = { version = "0.4", features = ["all"] }
+tokio = { version = "1.36.0", features = ["full"] }
+sqlx = { version = "0.7.0", features = ["postgres", "runtime-tokio-native-tls", "bigdecimal"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+uuid = "1.10.0"
+alloy = { version = "0.4.0", features = [
+    "full",
+    "node-bindings",
+    "rpc-types-debug",
+    "rpc-types-trace",
+    "json-rpc",
+    "rpc-client",
+    "signer-aws",
+    "signer-keystore",
+    "signer-ledger",
+    "signer-mnemonic",
+    "signer-trezor",
+    "signer-yubihsm",
+] }
+dotenv = "0.15.0"
+eyre = "0.6"
+eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git" }
+thiserror = "1.0"
+reqwest = "0.12.5"

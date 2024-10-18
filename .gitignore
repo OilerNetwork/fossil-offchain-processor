@@ -4,3 +4,4 @@ target/
 .env
 .vscode
 data.csv
+crates/mmr-accumulator/db-instances/
