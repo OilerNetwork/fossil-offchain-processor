@@ -1374,30 +1374,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "axum-extra"
-version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73c3220b188aea709cf1b6c5f9b01c3bd936bb08bd2b5184a12b35ac8131b1f9"
-dependencies = [
- "axum",
- "axum-core",
- "bytes",
- "futures-util",
- "http 1.1.0",
- "http-body 1.0.1",
- "http-body-util",
- "mime",
- "pin-project-lite",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "tower",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
 name = "axum-test"
 version = "15.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1570,6 +1546,7 @@ version = "0.1.0"
 dependencies = [
  "db-access",
  "eth-rlp-verify",
+ "eyre",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2147,8 +2124,8 @@ version = "0.1.0"
 dependencies = [
  "dotenv",
  "eth-rlp-verify",
+ "eyre",
  "reqwest 0.11.27",
- "serde",
  "serde_json",
  "sqlx",
  "tokio",
@@ -3718,14 +3695,12 @@ version = "0.1.0"
 dependencies = [
  "accumulators",
  "alloy",
- "alloy-network-primitives",
  "block-validity",
  "db-access",
  "dotenv",
  "eth-rlp-verify",
  "eyre",
  "reqwest 0.12.8",
- "serde_json",
  "sqlx",
  "thiserror",
  "tokio",
@@ -5865,7 +5840,6 @@ name = "server"
 version = "0.1.0"
 dependencies = [
  "axum",
- "axum-extra",
  "axum-test",
  "chrono",
  "db-access",
@@ -7639,7 +7613,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

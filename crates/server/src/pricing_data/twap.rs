@@ -1,11 +1,11 @@
 use db_access::models::BlockHeader;
-use eyre::{anyhow, Error};
+use eyre::{anyhow, Result};
 
 use super::utils::hex_string_to_f64;
 
 /// Calculates the time weighted average price (TWAP) of the base fee.
 /// TODO: handle the unwraps properly, or at least propagate them upwards.
-pub async fn calculate_twap(headers: Vec<BlockHeader>) -> Result<f64, Error> {
+pub async fn calculate_twap(headers: Vec<BlockHeader>) -> Result<f64> {
     let total_base_fee = headers
         .iter()
         .map(|header| {

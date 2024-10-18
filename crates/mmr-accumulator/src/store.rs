@@ -1,4 +1,5 @@
 use accumulators::store::{sqlite::SQLiteStore, StoreError};
+use eyre::Result;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use std::sync::Arc;

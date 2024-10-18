@@ -1,6 +1,6 @@
 use block_validity::utils::are_blocks_and_chain_valid;
 use db_access::rpc::get_block_headers_in_range;
-use eyre::ContextCompat;
+use eyre::{ContextCompat, Result};
 use mmr_accumulator::error::MMRProcessorError;
 use mmr_accumulator::ethereum::get_finalized_block_hash;
 use mmr_accumulator::processor_utils::*;

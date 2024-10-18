@@ -1,11 +1,12 @@
 use std::env;
 
 use db_access::{auth::add_api_key, DbConnection};
+use eyre::Result;
 use tracing::info;
 use uuid::Uuid;
 
 #[tokio::main]
-async fn main() -> Result<(), sqlx::Error> {
+async fn main() -> Result<()> {
     let db = DbConnection::new().await?;
 
     let name = env::args()

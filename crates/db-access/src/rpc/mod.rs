@@ -3,12 +3,12 @@ mod utils;
 use crate::rpc::utils::json_to_block_header;
 use dotenv::dotenv;
 use eth_rlp_verify::block_header::BlockHeader;
+use eyre::Result;
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::env;
-use std::error::Error;
 
-pub async fn get_block_by_number(block_number: u64) -> Result<BlockHeader, Box<dyn Error>> {
+pub async fn get_block_by_number(block_number: u64) -> Result<BlockHeader> {
     dotenv().ok();
 
     let rpc_url = env::var("ETH_RPC_URL").expect("ETH_RPC_URL must be set in .env");
@@ -41,7 +41,7 @@ pub async fn get_block_by_number(block_number: u64) -> Result<BlockHeader, Box<d
 pub async fn get_block_headers_in_range(
     from_block: u64,
     to_block: u64,
-) -> Result<Vec<BlockHeader>, Box<dyn Error>> {
+) -> Result<Vec<BlockHeader>> {
     dotenv().ok();
 
     let rpc_url = env::var("ETH_RPC_URL").expect("ETH_RPC_URL must be set in .env");

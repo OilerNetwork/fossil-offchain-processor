@@ -1,5 +1,3 @@
-mod ethereum;
-
 use accumulators::{
     hasher::stark_poseidon::StarkPoseidonHasher,
     mmr::MMR,

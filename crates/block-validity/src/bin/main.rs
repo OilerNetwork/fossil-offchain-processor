@@ -1,12 +1,10 @@
-mod utils;
-
+use block_validity::utils::are_blocks_and_chain_valid;
 use db_access::rpc::get_block_headers_in_range;
-use std::error::Error;
+use eyre::Result;
 use tracing::info;
-use utils::are_blocks_and_chain_valid;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();
@@ -16,7 +14,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let block_headers = get_block_headers_in_range(from_block, to_block).await?;
 
-    let all_valid = are_blocks_and_chain_valid(block_headers);
+    let all_valid = are_blocks_and_chain_valid(&block_headers);
     info!("Result: {}", all_valid);
 
     Ok(())
