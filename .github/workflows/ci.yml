@@ -10,6 +10,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  DATABASE_URL: ${{ secrets.DATABASE_URL }} # Ensure DATABASE_URL is globally available
 
 jobs:
   build-and-test:
@@ -22,25 +23,18 @@ jobs:
         run: sudo apt update && sudo apt install -y libomp-dev libopenblas-dev
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        run: rustup install ${{ matrix.toolchain }}
-
-      - name: Set up Rust toolchain
-        run: rustup default ${{ matrix.toolchain }}
+      - name: Install Rust toolchain and components
+        run: |
+          rustup install ${{ matrix.toolchain }}
+          rustup component add --toolchain ${{ matrix.toolchain }} rustfmt clippy
 
       - name: Set DATABASE_URL environment variable
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: echo "DATABASE_URL is set"
 
       - name: Build
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: cargo build --workspace --all-targets
 
       - name: Test
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: cargo test --workspace --all-targets
 
   lint-rust:
@@ -51,12 +45,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        run: rustup install ${{ matrix.toolchain }}
+      - name: Install Rust toolchain and components
+        run: |
+          rustup install ${{ matrix.toolchain }}
+          rustup component add --toolchain ${{ matrix.toolchain }} rustfmt clippy
 
       - name: Set DATABASE_URL environment variable
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: echo "DATABASE_URL is set"
 
       - name: Run fmt
