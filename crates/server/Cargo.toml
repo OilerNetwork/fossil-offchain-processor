@@ -2,6 +2,7 @@
 name = "server"
 version = "0.1.0"
 edition = "2021"
+default-run = "server"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,8 +16,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 eyre = "0.6"
 chrono = "0.4.38"
-reqwest = { version = "0.12", features = ["json"] }
-starknet = "0.12.0"
+# reqwest = { version = "0.12", features = ["json"] }
 starknet-crypto = "0.7.2"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = [
@@ -42,12 +42,11 @@ polars = { version = "0.41.3", features = [
     "rolling_window",
     "ndarray",
 ] }
-polars-core = "0.41.3"
-polars-io = "0.41.3"
 statrs = "0.16"
 optimization = "0.2.0"
 rand = "0.8.5"
 rand_distr = "0.4.3"
+serde_json = "1.0"
 ndarray-rand = "0.15.0"
 uuid = { version = "1.10.0", features = ["v4"] }
 

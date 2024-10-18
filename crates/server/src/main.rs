@@ -6,7 +6,6 @@ use axum::{
 use db_access::DbConnection;
 use eyre::Result;
 use server::{handlers, middlewares::auth::simple_apikey_auth};
-use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::Level;
 use tracing_subscriber::{filter, layer::SubscriberExt, util::SubscriberInitExt};
@@ -23,21 +22,21 @@ async fn main() -> Result<()> {
         .init();
 
     let app = Router::new()
-        .layer(
-            ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive()),
+        .route(
+            "/job_status/:job_id",
+            get(handlers::job_status::get_job_status)
+                .layer(from_fn_with_state(db.clone(), simple_apikey_auth)),
         )
-        .route("/", get(handlers::root::root))
         .route(
             "/pricing_data",
             post(handlers::get_pricing_data::get_pricing_data)
                 .layer(from_fn_with_state(db.clone(), simple_apikey_auth)),
         )
-        .route(
-            "/callback_test",
-            post(handlers::pricing_callback::pricing_callback),
-        )
+        .layer(TraceLayer::new_for_http())
+        // We don't want to trace health check endpoint,
+        // Since it'll become spam in our logs.
+        .route("/health", get(handlers::health_check::health_check))
+        .layer(CorsLayer::permissive())
         .with_state(db);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
