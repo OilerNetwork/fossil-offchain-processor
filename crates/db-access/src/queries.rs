@@ -1,10 +1,10 @@
-use sqlx::{types::BigDecimal, Error, PgPool};
-
-use crate::models::temp_to_block_header;
+use crate::models::{temp_to_block_header, JobRequest, JobStatus};
 use crate::models::{
     BlockHeader as DbBlockHeader, BlockHeaderSubset, TempBlockHeader, Transaction,
 };
 use eth_rlp_verify::block_header::BlockHeader;
+use sqlx::{types::BigDecimal, Error, PgPool};
+
 pub async fn get_transactions_by_block_number(
     pool: &PgPool,
     block_number: i64,
@@ -192,6 +192,61 @@ pub async fn get_block_headers_by_time_range(
     .await?;
 
     Ok(headers)
+}
+
+pub async fn create_job_request(
+    pool: &PgPool,
+    job_id: &str,
+    status: JobStatus,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        INSERT INTO job_requests (job_id, status) VALUES ($1, $2)
+        "#,
+        job_id,
+        status.as_str()
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_job_request(
+    pool: &PgPool,
+    job_id: &str,
+) -> Result<Option<JobRequest>, sqlx::Error> {
+    sqlx::query_as!(
+        JobRequest,
+        r#"
+        SELECT job_id, status as "status: JobStatus"
+        FROM job_requests
+        WHERE job_id = $1
+        "#,
+        job_id
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn update_job_status(
+    pool: &PgPool,
+    job_id: &str,
+    status: JobStatus,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        UPDATE job_requests
+        SET status = $1
+        WHERE job_id = $2
+        "#,
+        status.as_str(),
+        job_id
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
 
 pub async fn get_block_hashes_by_block_range(

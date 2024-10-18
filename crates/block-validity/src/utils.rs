@@ -8,7 +8,7 @@ pub fn are_blocks_and_chain_valid(block_headers: &[BlockHeader]) -> bool {
         let parent_hash = block.parent_hash.clone().unwrap_or_default();
         let block_number = block.number;
 
-        let is_valid = verify_block(block_number as u64, block, &block_hash);
+        let is_valid = verify_block(block_number as u64, block.clone(), &block_hash);
 
         if !is_valid {
             error!("Block {} is invalid (hash: {})", block_number, block_hash);

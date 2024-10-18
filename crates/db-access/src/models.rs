@@ -42,6 +42,29 @@ pub struct ApiKey {
     pub name: Option<String>,
 }
 
+#[derive(Debug, sqlx::Type)]
+pub enum JobStatus {
+    Completed,
+    Pending,
+    Failed,
+}
+
+impl JobStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            JobStatus::Completed => "Completed",
+            JobStatus::Pending => "Pending",
+            JobStatus::Failed => "Failed",
+        }
+    }
+}
+
+#[derive(sqlx::FromRow, Debug)]
+pub struct JobRequest {
+    pub job_id: String,
+    pub status: JobStatus,
+}
+
 #[derive(Debug, sqlx::FromRow)]
 pub struct TempBlockHeader {
     pub block_hash: String,
