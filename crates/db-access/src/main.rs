@@ -1,3 +1,6 @@
+#![deny(unused_crate_dependencies)]
+use dotenv as _;
+
 use db_access::models::BlockHeaderSubset;
 use db_access::queries::get_base_fees_between_blocks;
 use db_access::DbConnection;
