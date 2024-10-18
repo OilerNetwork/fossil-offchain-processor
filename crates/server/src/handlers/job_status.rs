@@ -6,6 +6,7 @@ use axum::{
 use db_access::{queries::get_job_request, DbConnection};
 use serde::Serialize;
 use serde_json::json;
+use tracing::error;
 
 #[derive(Serialize)]
 pub struct JobStatusResponse {
@@ -36,11 +37,15 @@ pub async fn get_job_status(
                 error: "Job not found".to_string(),
             })),
         ),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!(ErrorResponse {
-                error: format!("An error occurred while processing the request: {}", e).to_string(),
-            })),
-        ),
+        Err(e) => {
+            error!("Failed to get job status: {:?}", e);
+
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!(ErrorResponse {
+                    error: "An internal error occurred. Please try again later.".to_string(),
+                })),
+            )
+        }
     }
 }

@@ -12,16 +12,15 @@ use tracing_subscriber::{filter, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Setup database connection from another crate
     let db = DbConnection::new().await?;
 
-    // Setup tracking aka logging.
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
         .with(filter::Targets::new().with_default(Level::DEBUG))
         .init();
 
-    let app = Router::new()
+    // Define routes with specific middleware.
+    let secured_routes = Router::new()
         .route(
             "/job_status/:job_id",
             get(handlers::job_status::get_job_status)
@@ -31,16 +30,20 @@ async fn main() -> Result<()> {
             "/pricing_data",
             post(handlers::get_pricing_data::get_pricing_data)
                 .layer(from_fn_with_state(db.clone(), simple_apikey_auth)),
-        )
+        );
+
+    let public_routes = Router::new().route("/health", get(handlers::health_check::health_check));
+
+    // Build the complete application router with middleware layers.
+    let app = Router::new()
+        .merge(secured_routes)
+        .merge(public_routes)
         .layer(TraceLayer::new_for_http())
-        // We don't want to trace health check endpoint,
-        // Since it'll become spam in our logs.
-        .route("/health", get(handlers::health_check::health_check))
         .layer(CorsLayer::permissive())
         .with_state(db);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    tracing::debug!("Listening on {}", listener.local_addr().unwrap());
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    tracing::debug!("Listening on {}", listener.local_addr()?);
 
     axum::serve(listener, app).await.unwrap();
 
