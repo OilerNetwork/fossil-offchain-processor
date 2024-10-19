@@ -156,11 +156,11 @@ mod tests {
 
         // Use provided client and vault addresses
         let client_address =
-            Felt::from_hex("0x076f2b66be5ced2480a8baa6a996d309ffaf41b796ca13b3cf907a32e6bf1ea1")
+            Felt::from_hex("0x039812d6db47b5bdeafb002fa759e84257607d0b97b7dab04d0cf894dda5c7cb")
                 .unwrap();
 
         let vault_address =
-            Felt::from_hex("0x07ff69b044ff162299dc02a6e67dadde323f9c09f3a12a8594f20951624d545b")
+            Felt::from_hex("0x02074629654fa9ce01e19464e7ba6d22527bca28de390012d4705082fba63f4b")
                 .unwrap();
 
         let round_id = 1;
