@@ -5,3 +5,4 @@ target/
 .vscode
 data.csv
 crates/mmr-accumulator/db-instances/
+zkvm/.bonsai-env
