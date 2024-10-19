@@ -6,34 +6,13 @@ use db_access::{
     },
     DbConnection,
 };
-use serde::{Deserialize, Serialize};
 use starknet_crypto::{poseidon_hash_single, Felt};
 use tokio::{join, time::Instant};
 
 use crate::pricing_data::{
     reserve_price::calculate_reserve_price, twap::calculate_twap, volatility::calculate_volatility,
 };
-
-// timestamp ranges for each sub-job calculation
-#[derive(Debug, Deserialize, Serialize)]
-pub struct PitchLakeJobRequestParams {
-    twap: (i64, i64),
-    volatility: (i64, i64),
-    reserve_price: (i64, i64),
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct PitchLakeJobRequest {
-    identifiers: Vec<String>,
-    params: PitchLakeJobRequestParams,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct JobResponse {
-    job_id: String,
-    message: String,
-    status_url: String,
-}
+use crate::types::{JobResponse, PitchLakeJobRequest};
 
 pub async fn get_pricing_data(
     State(db): State<DbConnection>,

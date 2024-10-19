@@ -4,20 +4,9 @@ use axum::{
     Json,
 };
 use db_access::{queries::get_job_request, DbConnection};
-use serde::Serialize;
 use serde_json::json;
 use tracing::error;
-
-#[derive(Serialize)]
-pub struct JobStatusResponse {
-    job_id: String,
-    status: String,
-}
-
-#[derive(Serialize)]
-struct ErrorResponse {
-    error: String,
-}
+use crate::types::{ErrorResponse, JobStatusResponse};
 
 pub async fn get_job_status(
     State(db): State<DbConnection>,

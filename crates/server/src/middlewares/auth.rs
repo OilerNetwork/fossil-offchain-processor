@@ -6,13 +6,7 @@ use axum::{
     Json,
 };
 use db_access::{auth::find_api_key, DbConnection};
-use serde::Serialize;
-
-#[derive(Debug, Serialize)]
-pub struct AuthErrorResponse {
-    error: String,
-}
-
+use crate::types::AuthErrorResponse;
 /// A simple api key auth that checks if the key provided is in the db
 /// TODO: change this to use the more comprehensive tower_http auth middleware.
 pub async fn simple_apikey_auth(

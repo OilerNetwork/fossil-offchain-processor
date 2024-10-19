@@ -3,6 +3,7 @@ members = [
     "crates/server",
     "crates/db-access",
     "crates/mmr-accumulator",
-    "crates/block-validity", "crates/starknet-handler",
+    "crates/block-validity",
+    "crates/starknet-handler",
 ]
 resolver = "2"
