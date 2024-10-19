@@ -6507,9 +6507,12 @@ dependencies = [
 name = "starknet-handler"
 version = "0.1.0"
 dependencies = [
+ "dotenv",
  "eyre",
+ "server",
  "starknet 0.12.0",
  "starknet-crypto 0.7.2",
+ "tokio",
 ]
 
 [[package]]

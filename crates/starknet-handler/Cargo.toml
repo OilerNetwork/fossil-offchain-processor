@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+server = { path = "../server" }
+
+eyre = "0.6"
+starknet-crypto = "0.7.2"
+starknet = "0.12"
+dotenv = "0.15.0"
+tokio = { version = "1", features = ["full"] }

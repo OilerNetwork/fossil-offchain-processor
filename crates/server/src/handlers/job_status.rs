@@ -1,3 +1,4 @@
+use crate::types::{ErrorResponse, JobStatusResponse};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -6,7 +7,6 @@ use axum::{
 use db_access::{queries::get_job_request, DbConnection};
 use serde_json::json;
 use tracing::error;
-use crate::types::{ErrorResponse, JobStatusResponse};
 
 pub async fn get_job_status(
     State(db): State<DbConnection>,
