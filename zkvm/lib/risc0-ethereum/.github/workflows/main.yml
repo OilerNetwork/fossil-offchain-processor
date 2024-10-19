@@ -1,0 +1,228 @@
+name: CI
+
+on:
+  merge_group:
+  pull_request:
+    branches: [main, "release-*"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# this is needed to gain access via OIDC to the S3 bucket for caching
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  RISC0_TOOLCHAIN_VERSION: r0.1.79.0-2
+  RISC0_MONOREPO_REF: "release-1.1"
+
+jobs:
+  # see: https://github.com/orgs/community/discussions/26822
+  main-status-check:
+    if: always()
+    needs:
+      - check
+      - doc
+      - docs-rs
+      - test-risc0-ethereum
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all job status
+        # see https://docs.github.com/en/actions/reference/context-and-expression-syntax-for-github-actions#needs-context
+        # see https://stackoverflow.com/a/67532120/4907315
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history is required by license-check.py
+          fetch-depth: 0
+      - uses: risc0/risc0/.github/actions/rustup@main
+      - name: Install cargo-sort
+        uses: risc0/cargo-install@b9307573043522ab0d3e3be64a51763b765b52a4
+        with:
+          crate: cargo-sort
+          version: "1.0"
+      - name: cargo check risc0-ethereum
+        run: |
+          cargo fmt --all --check
+          cargo sort --workspace --check
+      - name: cargo check examples
+        run: ../.github/scripts/cargo-check.sh
+        working-directory: examples
+      - uses: risc0/foundry-toolchain@2fe7e70b520f62368a0e3c464f997df07ede420f
+      - name: forge check risc0-ethereum
+        run: forge fmt --check
+        working-directory: contracts
+      - name: forge check examples
+        run: ../.github/scripts/forge-check.sh
+        working-directory: examples
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - run: python license-check.py
+      - name: check for "D0 NOT MERGE" comments
+        run: |
+          [ "$(grep -re 'DO[_ ]\?NOT[_ ]\?MERGE' $(git ls-tree --full-tree --name-only -r HEAD) | tee /dev/fd/2 | wc -l)" -eq "0" ]
+
+  clippy:
+    runs-on: [self-hosted, prod, "${{ matrix.os }}", "${{ matrix.device }}"]
+    strategy:
+      # Run only on Linux with CPU.
+      matrix:
+        include:
+          - os: Linux
+            feature: default
+            device: cpu
+    steps:
+      # This is a workaround from: https://github.com/actions/checkout/issues/590#issuecomment-970586842
+      - run: "git checkout -f $(git -c user.name=x -c user.email=x@x commit-tree $(git hash-object -t tree /dev/null) < /dev/null) || :"
+      - uses: actions/checkout@v4
+      - if: matrix.feature == 'cuda'
+        uses: risc0/risc0/.github/actions/cuda@main
+      - uses: risc0/risc0/.github/actions/rustup@main
+      - uses: risc0/risc0/.github/actions/sccache@main
+        with:
+          key: ${{ matrix.os }}-${{ matrix.feature }}
+      - uses: ./.github/actions/cargo-risczero-install
+        with:
+          ref: ${{ env.RISC0_MONOREPO_REF }}
+          toolchain-version: ${{ env.RISC0_TOOLCHAIN_VERSION }}
+          features: ${{ matrix.feature }}
+      - name: cargo clippy risc0-ethereum
+        run: cargo clippy --workspace --all-targets --all-features
+        env:
+          RUSTFLAGS: -Dwarnings
+          RISC0_SKIP_BUILD: true
+      - name: cargo clippy all examples
+        run: ../.github/scripts/cargo-clippy.sh
+        working-directory: examples
+        env:
+          RUSTFLAGS: -Dwarnings
+          RISC0_SKIP_BUILD: true
+      - run: sccache --show-stats
+
+  test-risc0-ethereum:
+    runs-on: [self-hosted, prod, "${{ matrix.os }}", "${{ matrix.device }}"]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Linux
+            feature: default
+            device: cpu
+          - os: Linux
+            feature: cuda
+            device: nvidia_rtx_a5000
+          - os: macOS
+            feature: default
+            device: apple_m2_pro
+    env:
+      FEATURE: ${{ matrix.feature }}
+      RUST_BACKTRACE: full
+    steps:
+      # This is a workaround from: https://github.com/actions/checkout/issues/590#issuecomment-970586842
+      - run: "git checkout -f $(git -c user.name=x -c user.email=x@x commit-tree $(git hash-object -t tree /dev/null) < /dev/null) || :"
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - if: matrix.feature == 'cuda'
+        uses: risc0/risc0/.github/actions/cuda@main
+      - uses: risc0/risc0/.github/actions/rustup@main
+      - uses: risc0/risc0/.github/actions/sccache@main
+        with:
+          key: ${{ matrix.os }}-${{ matrix.feature }}
+      - uses: ./.github/actions/cargo-risczero-install
+        with:
+          ref: ${{ env.RISC0_MONOREPO_REF }}
+          toolchain-version: ${{ env.RISC0_TOOLCHAIN_VERSION }}
+          features: ${{ matrix.feature }}
+      - uses: risc0/foundry-toolchain@2fe7e70b520f62368a0e3c464f997df07ede420f
+      - name: cargo build
+        run: cargo build --workspace --all-features
+      - name: cargo test
+        run: cargo test --workspace --all-features --timings
+      - name: Upload timings artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: cargo-timings-${{ matrix.os }}-${{ matrix.device }}
+          path: target/cargo-timings/
+          retention-days: 5
+      - run: forge test -vvv
+        working-directory: contracts
+      - run: sccache --show-stats
+
+  examples:
+    runs-on: [self-hosted, prod, "${{ matrix.os }}", "${{ matrix.device }}"]
+    strategy:
+      # Run only on Linux with CPU. Additional coverage is marginal.
+      matrix:
+        include:
+          - os: Linux
+            feature: default
+            device: cpu
+    env:
+      RUST_BACKTRACE: full
+    steps:
+      # This is a workaround from: https://github.com/actions/checkout/issues/590#issuecomment-970586842
+      - run: "git checkout -f $(git -c user.name=x -c user.email=x@x commit-tree $(git hash-object -t tree /dev/null) < /dev/null) || :"
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - if: matrix.feature == 'cuda'
+        uses: risc0/risc0/.github/actions/cuda@main
+      - uses: risc0/risc0/.github/actions/rustup@main
+      - uses: risc0/risc0/.github/actions/sccache@main
+        with:
+          key: ${{ matrix.os }}-${{ matrix.feature }}
+      - uses: ./.github/actions/cargo-risczero-install
+        with:
+          ref: ${{ env.RISC0_MONOREPO_REF }}
+          toolchain-version: ${{ env.RISC0_TOOLCHAIN_VERSION }}
+          features: ${{ matrix.feature }}
+      - uses: risc0/foundry-toolchain@2fe7e70b520f62368a0e3c464f997df07ede420f
+      - name: cargo test all examples
+        run: ../.github/scripts/cargo-test.sh
+        working-directory: examples
+      - name: forge test all examples
+        run: ../.github/scripts/forge-test.sh
+        working-directory: examples
+      - run: sccache --show-stats
+
+  doc:
+    runs-on: [self-hosted, prod, macOS, cpu]
+    steps:
+      # This is a workaround from: https://github.com/actions/checkout/issues/590#issuecomment-970586842
+      - run: "git checkout -f $(git -c user.name=x -c user.email=x@x commit-tree $(git hash-object -t tree /dev/null) < /dev/null) || :"
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: risc0/risc0/.github/actions/rustup@main
+      - uses: risc0/foundry-toolchain@2fe7e70b520f62368a0e3c464f997df07ede420f
+      - run: cargo doc --no-deps --workspace
+      - run: forge doc
+
+  # Run as a separate job because we need to install a different set of tools.
+  # In particular, it uses nightly Rust and _does not_ install Forge or cargo risczero.
+  docs-rs:
+    runs-on: [self-hosted, prod, macOS, cpu]
+    steps:
+      # This is a workaround from: https://github.com/actions/checkout/issues/590#issuecomment-970586842
+      - run: "git checkout -f $(git -c user.name=x -c user.email=x@x commit-tree $(git hash-object -t tree /dev/null) < /dev/null) || :"
+      - uses: actions/checkout@v4
+      - uses: risc0/risc0/.github/actions/rustup@main
+        with:
+          # Building with docs.rs config requires the nightly toolchain.
+          toolchain: nightly
+      - run: cargo +nightly doc -p risc0-steel --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: "--cfg docsrs -D warnings"
+      - run: cargo +nightly doc -p risc0-build-ethereum --all-features --no-deps
+        env:
+          RUSTDOCFLAGS: "--cfg docsrs -D warnings"

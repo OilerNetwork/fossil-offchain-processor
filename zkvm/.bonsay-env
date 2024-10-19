@@ -1,0 +1,4 @@
+# Anvil sets up a number of default wallets, and this private key is one of them.
+export ETH_WALLET_PRIVATE_KEY=
+export BONSAI_API_KEY="ZLj670Kwrw57AiufKDjoF1uoozSjZwiba6IPtDgE"
+export BONSAI_API_URL="https://api.bonsai.xyz/"
