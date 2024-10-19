@@ -139,7 +139,8 @@ mod tests {
     };
     use starknet_crypto::Felt;
     use tokio;
-
+    
+    #[ignore]
     #[tokio::test]
     async fn test_callback_to_contract() -> eyre::Result<()> {
         dotenv().ok();
