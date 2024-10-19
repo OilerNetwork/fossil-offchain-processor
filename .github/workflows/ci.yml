@@ -2,27 +2,38 @@ name: Cargo Build & Format
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 
 env:
   CARGO_TERM_COLOR: always
+  DATABASE_URL: ${{ secrets.DATABASE_URL }} # Ensure DATABASE_URL is globally available
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        toolchain:
-          - stable
-          - beta
-          - nightly
+        toolchain: [stable, beta, nightly]
     steps:
       - name: Install required dependencies
-        run: sudo apt update && sudo apt install libomp-dev libopenblas-dev
+        run: sudo apt update && sudo apt install -y libomp-dev libopenblas-dev
       - uses: actions/checkout@v4
-      - run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
+
+      - name: Install Rust toolchain and components
+        run: |
+          rustup install ${{ matrix.toolchain }}
+          rustup component add --toolchain ${{ matrix.toolchain }} rustfmt clippy
+
+      - name: Set DATABASE_URL environment variable
+        run: echo "DATABASE_URL is set"
+
       - name: Build
         run: cargo build --workspace --all-targets
+
       - name: Test
         run: cargo test --workspace --all-targets
 
@@ -30,13 +41,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        toolchain:
-          - stable
-          - beta
-          - nightly
+        toolchain: [stable, beta, nightly]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain and components
+        run: |
+          rustup install ${{ matrix.toolchain }}
+          rustup component add --toolchain ${{ matrix.toolchain }} rustfmt clippy
+
+      - name: Set DATABASE_URL environment variable
+        run: echo "DATABASE_URL is set"
+
       - name: Run fmt
-        run: cargo fmt --all -- --check
+        run: cargo +${{ matrix.toolchain }} fmt --all -- --check
+
       - name: Run clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo +${{ matrix.toolchain }} clippy --workspace -- -D warnings

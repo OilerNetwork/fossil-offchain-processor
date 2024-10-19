@@ -1,10 +1,10 @@
-use anyhow::Error;
 use db_access::models::BlockHeader;
+use eyre::Result;
 
 use super::utils::hex_string_to_f64;
 
 // Returns volatility as BPS (i.e., 5001 means VOL=50.01%)
-pub async fn calculate_volatility(blocks: Vec<BlockHeader>) -> Result<f64, Error> {
+pub async fn calculate_volatility(blocks: Vec<BlockHeader>) -> Result<f64> {
     // Calculate log returns
     let mut returns: Vec<f64> = Vec::new();
     for i in 1..blocks.len() {

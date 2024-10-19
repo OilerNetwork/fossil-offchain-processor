@@ -1,6 +1,11 @@
+#![deny(unused_crate_dependencies)]
+use tokio as _;
+
 pub mod auth;
 pub mod models;
 pub mod queries;
+pub mod rpc;
+pub mod utils;
 
 use dotenv::dotenv;
 use sqlx::postgres::PgPool;
