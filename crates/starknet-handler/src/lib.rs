@@ -152,10 +152,8 @@ mod tests {
             Url::parse(&rpc_url).expect("Invalid rpc url provided"),
         ));
 
-        // Initialize account using the default constructor
         let account = FossilStarknetAccount::default();
 
-        // Use provided client and vault addresses
         let client_address =
             Felt::from_hex("0x039812d6db47b5bdeafb002fa759e84257607d0b97b7dab04d0cf894dda5c7cb")
                 .unwrap();
@@ -191,8 +189,8 @@ mod tests {
 
         let job_request = JobRequest {
             vault_address,
-            timestamp: deployment_date[0].try_into().unwrap(), // Random timestamp value
-            program_id: Felt::from_hex(PITCH_LAKE_V1).unwrap(), // Random program_id value
+            timestamp: deployment_date[0].try_into().unwrap(),
+            program_id: Felt::from_hex(PITCH_LAKE_V1).unwrap(),
         };
 
         let pitch_lake_result = PitchLakeResult {
