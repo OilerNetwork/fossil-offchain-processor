@@ -7,3 +7,14 @@ members = [
     "crates/starknet-handler",
 ]
 resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.dependencies]
+eyre = "0.6"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+dotenv = "0.15.0"
+sqlx = { version = "0.7.0", features = ["postgres", "runtime-tokio-native-tls", "bigdecimal"] }

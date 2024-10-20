@@ -1,14 +1,15 @@
 [package]
 name = "block-validity"
-version = "0.1.0"
-edition = "2021"
+version = { workspace = true }
+edition = { workspace = true }
 
 [dependencies]
 db-access = { path = "../db-access" }
 eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git" }
 
-tracing = "0.1.40"
+tracing = { workspace = true }
+tokio = { workspace = true }
+eyre = { workspace = true }
+
 tracing-subscriber = "0.3.16"
-tokio = { version = "1.36.0", features = ["full"] }
-eyre = "0.6"
 
