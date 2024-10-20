@@ -1,5 +1,6 @@
 use block_validity::utils::are_blocks_and_chain_valid;
-use db_access::rpc::get_block_headers_in_range;
+use db_access::queries::get_block_headers_by_block_range;
+use db_access::DbConnection;
 use eyre::{ContextCompat, Result};
 use mmr_accumulator::error::MMRProcessorError;
 use mmr_accumulator::ethereum::get_finalized_block_hash;
@@ -19,6 +20,8 @@ async fn main() -> Result<(), MMRProcessorError> {
     let (finalized_block_number, finalized_block_hash) = get_finalized_block_hash().await?;
     info!("Finalized block number: {}", finalized_block_number);
 
+    let db = DbConnection::new().await?;
+
     // Initialize MMR
     let db_file = 0;
     let current_dir = ensure_directory_exists("db-instances")?;
@@ -34,8 +37,12 @@ async fn main() -> Result<(), MMRProcessorError> {
 
         let start_block = batch_last_block_number.saturating_sub(BATCH_SIZE);
 
-        let block_headers =
-            get_block_headers_in_range(start_block, batch_last_block_number).await?;
+        let block_headers = get_block_headers_by_block_range(
+            &db.pool,
+            start_block as i64,
+            batch_last_block_number as i64,
+        )
+        .await?;
         info!("Fetched block headers: {}", block_headers.len());
 
         if block_headers.is_empty() {
