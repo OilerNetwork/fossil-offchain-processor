@@ -5,3 +5,5 @@ CREATE TABLE api_keys (
     name VARCHAR(255) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+-- Add down migration script here
+DROP TABLE api_keys;
