@@ -1,14 +1,15 @@
 use crate::AppState;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use db_access::queries::get_job_request;
 use serde_json::json;
+// use chrono::{DateTime, Utc};
 
 #[axum::debug_handler]
 pub async fn get_job_status(
-    State(state): State<AppState>, // Use AppState as the state
-    axum::extract::Path(job_id): axum::extract::Path<String>,
+    State(state): State<AppState>,
+    Path(job_id): Path<String>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     match get_job_request(&state.db.pool, &job_id).await {
         Ok(Some(job)) => (
@@ -16,6 +17,7 @@ pub async fn get_job_status(
             Json(json!({
                 "job_id": job.job_id,
                 "status": job.status.to_string(),
+                "created_at": job.created_at.and_utc(), // Convert to UTC if it's NaiveDateTime
             })),
         ),
         Ok(None) => (
@@ -35,7 +37,6 @@ pub async fn get_job_status(
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use crate::handlers::fixtures::TestContext;
@@ -48,7 +49,6 @@ mod tests {
     async fn test_get_job_status_not_found() {
         let ctx = TestContext::new().await;
         let job_id = "non_existent_job_id";
-
         let (status, Json(response)) = ctx.get_job_status(job_id).await;
 
         assert_eq!(status, StatusCode::NOT_FOUND);

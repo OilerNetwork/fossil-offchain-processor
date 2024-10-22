@@ -9,6 +9,7 @@ db-access = { path = "../db-access" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 sqlx = { workspace = true }
+dotenv = "0.15.0"
 
 # Use axum with the appropriate features (without 'tower')
 axum = { version = "0.7.7", features = ["http1", "http2", "json", "macros"] }
@@ -18,8 +19,8 @@ tower-http = { version = "0.6.1", features = ["cors", "trace", "auth"] }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-eyre = "0.6"
-chrono = "0.4.38"
+eyre = { version = "0.6.12" }
+chrono = { version = "0.4", features = ["serde"] }
 starknet-crypto = "0.7.2"
 
 tracing-subscriber = { version = "0.3.18", features = [
@@ -47,10 +48,10 @@ rand_distr = "0.4.3"
 # async-trait = "0.1.83"
 hyper = "1.0"
 ndarray-rand = "0.15.0"
+uuid = { version = "1.10.0", features = ["v4"] }
 
 [dev-dependencies]
 mockall = "0.13"
-uuid = { version = "1.10.0", features = ["v4"] }
 testcontainers = "0.14"
 lazy_static = "1.4"
 tokio = { version = "1", features = ["full"] }

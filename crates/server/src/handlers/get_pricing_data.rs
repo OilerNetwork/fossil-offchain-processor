@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::{Json, State},
+    http::StatusCode,
+};
+
 use db_access::{
     models::JobStatus,
     queries::{
@@ -26,6 +30,8 @@ pub async fn get_pricing_data(
     State(state): State<AppState>,
     Json(payload): Json<PitchLakeJobRequest>,
 ) -> (StatusCode, Json<JobResponse>) {
+    tracing::debug!("Received payload: {:?}", payload);
+
     if payload.identifiers.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -37,7 +43,10 @@ pub async fn get_pricing_data(
         );
     }
 
+    tracing::debug!("Received payload: {:?}", payload);
+
     if let Err((status, response)) = validate_time_ranges(&payload.params) {
+        tracing::error!("Invalid time ranges: {:?}", payload.params);
         return (status, Json(response));
     }
 
@@ -46,26 +55,31 @@ pub async fn get_pricing_data(
     ))
     .to_string();
 
+    // Default to localhost:3000 if we can't get the host from headers
+    let base_url = "http://localhost:3000".to_string();
+
     match get_job_request(&state.db.pool, &job_id).await {
         Ok(Some(job_request)) => match job_request.status {
-            JobStatus::Pending => (
-                StatusCode::CONFLICT,
-                Json(JobResponse {
+            JobStatus::Pending => {
+                let response = JobResponse {
                     job_id: job_id.clone(),
                     message: "Job is already pending. Use the status endpoint to monitor progress."
                         .to_string(),
-                    status_url: format!("/job_status/{}", job_id),
-                }),
-            ),
-            JobStatus::Completed => (
-                StatusCode::CONFLICT,
-                Json(JobResponse {
+                    status_url: format!("{}/job_status/{}", base_url, job_id),
+                };
+                tracing::debug!("Sending pending response: {:?}", response);
+                (StatusCode::CONFLICT, Json(response))
+            }
+            JobStatus::Completed => {
+                let response = JobResponse {
                     job_id: job_id.clone(),
-                    message: "Job has already been completed. No further processing required."
+                    message: "Job has already been completed. You can fetch the results using the status URL."
                         .to_string(),
-                    status_url: format!("/job_status/{}", job_id),
-                }),
-            ),
+                    status_url: format!("{}/job_status/{}", base_url, job_id),
+                };
+                tracing::debug!("Sending completed response: {:?}", response);
+                (StatusCode::OK, Json(response))
+            }
             JobStatus::Failed => {
                 // Reprocess the failed job
                 if let Err(e) = update_job_status(&state.db.pool, &job_id, JobStatus::Pending).await
@@ -73,8 +87,9 @@ pub async fn get_pricing_data(
                     return (StatusCode::INTERNAL_SERVER_ERROR, Json(JobResponse {
                         job_id: job_id.clone(),
                         message: format!("Previous job request failed. An error occurred while updating job status: {}", e).to_string(),
-                        status_url: format!("/job_status/{}", job_id),
-                    }));
+                            status_url: format!("{}/job_status/{}", base_url, job_id),
+                        }),
+                    );
                 }
                 tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
 
@@ -83,7 +98,7 @@ pub async fn get_pricing_data(
                     Json(JobResponse {
                         job_id: job_id.clone(),
                         message: "Previous job request failed. Reprocessing initiated.".to_string(),
-                        status_url: format!("/job_status/{}", job_id),
+                        status_url: format!("{}/job_status/{}", base_url, job_id),
                     }),
                 )
             }
@@ -132,6 +147,8 @@ pub async fn get_pricing_data(
 }
 
 async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJobRequest) {
+    tracing::info!("Fetching block headers for job_id: {}", job_id);
+
     let block_headers_for_calculations = join!(
         get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),
         get_block_headers_by_time_range(
@@ -152,11 +169,19 @@ async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJo
                 Ok(twap_blockheaders),
                 Ok(volatility_blockheaders),
                 Ok(reserve_price_blockheaders),
-            ) => (
-                twap_blockheaders,
-                volatility_blockheaders,
-                reserve_price_blockheaders,
-            ),
+            ) => {
+                tracing::info!(
+                    "Fetched {} TWAP headers, {} Volatility headers, {} Reserve Price headers",
+                    twap_blockheaders.len(),
+                    volatility_blockheaders.len(),
+                    reserve_price_blockheaders.len()
+                );
+                (
+                    twap_blockheaders,
+                    volatility_blockheaders,
+                    reserve_price_blockheaders,
+                )
+            }
             _ => {
                 tracing::error!(
                     "Failed to query db data: {:?}",
@@ -167,8 +192,13 @@ async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJo
             }
         };
 
+    tracing::info!("Starting TWAP calculation...");
     let twap_future = calculate_twap(twap_blockheaders);
+
+    tracing::info!("Starting Volatility calculation...");
     let volatility_future = calculate_volatility(volatility_blockheaders);
+
+    tracing::info!("Starting Reserve Price calculation...");
     let reserve_price_future = calculate_reserve_price(reserve_price_blockheaders);
 
     let now = Instant::now();
@@ -183,14 +213,14 @@ async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJo
         (Ok(twap), Ok(volatility_result), Ok(reserve_price_result)) => {
             tracing::debug!("TWAP result: {:?}", twap);
             tracing::debug!("Volatility result: {:?}", volatility_result);
-            tracing::debug!("Reserve price result: {:?}", reserve_price_result);
+            tracing::debug!("Reserve Price result: {:?}", reserve_price_result);
             let _ = update_job_status(&db.pool, &job_id, JobStatus::Completed).await;
-            // TODO: Send success callback
+            tracing::info!("Sending success callback for job_id: {}", job_id);
         }
         future_tuple_with_err => {
             tracing::error!("Failed calculation: {:?}", future_tuple_with_err);
             let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed).await;
-            // TODO: Send failure callback
+            tracing::error!("Sending failure callback for job_id: {}", job_id);
         }
     }
 }

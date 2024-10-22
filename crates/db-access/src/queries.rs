@@ -167,6 +167,7 @@ pub async fn get_block_headers_by_time_range(
     start_timestamp: i64,
     end_timestamp: i64,
 ) -> Result<Vec<DbBlockHeader>, Error> {
+    tracing::debug!("Getting block headers by time range: {} to {}", start_timestamp, end_timestamp);
     let headers = sqlx::query_as!(
         DbBlockHeader,
         r#"

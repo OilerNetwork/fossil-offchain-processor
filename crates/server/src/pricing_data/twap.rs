@@ -1,30 +1,30 @@
+use super::utils::hex_string_to_f64;
 use db_access::models::BlockHeader;
 use eyre::{anyhow, Result};
+use tracing::debug;
 
-use super::utils::hex_string_to_f64;
-
-/// Calculates the time weighted average price (TWAP) of the base fee.
-/// TODO: handle the unwraps properly, or at least propagate them upwards.
 pub async fn calculate_twap(headers: Vec<BlockHeader>) -> Result<f64> {
-    let total_base_fee = headers
-        .iter()
-        .map(|header| {
-            let base_fee = match header.base_fee_per_gas.clone() {
-                Some(val) => val,
-                None => "0x0".to_string(),
-            };
-            hex_string_to_f64(&base_fee)
-        })
-        .reduce(|prev, current| prev + current);
+    if headers.is_empty() {
+        return Err(anyhow!("The provided block headers are empty."));
+    }
 
-    let total_base_fee = match total_base_fee {
-        Some(val) => val,
-        None => return Err(anyhow!("Failed during calculation of twap.")),
-    };
+    debug!("Calculating TWAP for {} headers", headers.len());
 
-    // Calculate the twap, which in this case we are assuming to have the window of 30days
-    // according to the given timestamp range.
+    let total_base_fee = headers.iter().try_fold(0.0, |acc, header| -> Result<f64> {
+        let base_fee = header
+            .base_fee_per_gas
+            .clone()
+            .unwrap_or_else(|| "0x0".to_string());
+        let fee = hex_string_to_f64(&base_fee)?;
+        Ok(acc + fee)
+    })?;
+
     let twap_result = total_base_fee / headers.len() as f64;
+
+    debug!(
+        "Total base fee: {}, TWAP result: {}",
+        total_base_fee, twap_result
+    );
 
     Ok(twap_result)
 }

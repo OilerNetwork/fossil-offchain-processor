@@ -18,21 +18,30 @@ use statrs::distribution::Binomial;
 use std::f64::consts::PI;
 
 pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64> {
-    // Create a DataFrame from block_headers
-    let mut timestamps: Vec<i64> = Vec::new();
-    let mut base_fees: Vec<f64> = Vec::new();
+    tracing::debug!(
+        "Starting reserve price calculation with {} headers",
+        block_headers.len()
+    );
+
+    if block_headers.is_empty() {
+        tracing::error!("No block headers provided.");
+        return Err(eyre::eyre!("No block headers provided."));
+    }
+
+    let mut timestamps = Vec::new();
+    let mut base_fees = Vec::new();
 
     for header in block_headers {
-        timestamps.push(
-            header
-                .timestamp
-                .ok_or_else(|| err!("No timestamp in header"))?,
-        );
-        base_fees.push(hex_string_to_f64(
+        let timestamp = header
+            .timestamp
+            .ok_or_else(|| err!("No timestamp in header"))?;
+        let base_fee = hex_string_to_f64(
             &header
                 .base_fee_per_gas
                 .ok_or_else(|| err!("No base fee in header"))?,
-        ));
+        )?;
+        timestamps.push(timestamp);
+        base_fees.push(base_fee);
     }
 
     let mut df = DataFrame::new(vec![
@@ -40,25 +49,36 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         Series::new("base_fee", base_fees),
     ])?;
 
+    tracing::debug!("Initial DataFrame: {:?}", df);
+
     df = replace_timestamp_with_date(df)?;
     df = group_by_1h_intervals(df)?;
+
+    tracing::debug!("DataFrame after grouping: {:?}", df);
+
     df = add_twap_7d(df)?;
+    tracing::debug!(
+        "TWAP_7d column after calculation: {:?}",
+        df.column("TWAP_7d")?
+    );
 
     let twap_7d_series = df.column("TWAP_7d")?;
-    let strike = twap_7d_series
-        .f64()?
-        .last()
-        .ok_or_else(|| err!("The series is empty"))?;
+    let strike = twap_7d_series.f64()?.last().ok_or_else(|| {
+        tracing::error!("The series is empty.");
+        err!("The series is empty")
+    })?;
 
+    tracing::debug!("Strike price: {}", strike);
+
+    // Proceed with further calculations...
     let num_paths = 15000;
     let n_periods = 720;
     let cap_level = 0.3;
     let risk_free_rate = 0.05;
 
-    // Data Cleaning and Preprocessing - removing null if exist and log transformation
-    // ===============================================================================================
-
     let mut df = drop_nulls(&df, "TWAP_7d")?;
+
+    tracing::debug!("DataFrame after dropping nulls: {:?}", df);
 
     let period_end_date_timestamp = df
         .column("date")?
@@ -571,22 +591,34 @@ fn neg_log_likelihood(params: &[f64], pt: &Array1<f64>, pt_1: &Array1<f64>) -> f
 /// * The final collection of the lazy DataFrame fails.
 ///
 fn add_twap_7d(df: DataFrame) -> Result<DataFrame> {
-    let df = df
-        .lazy()
-        .with_column(
-            col("base_fee")
-                .rolling_mean(RollingOptionsFixedWindow {
-                    window_size: 24 * 7,
-                    min_periods: 24 * 7,
-                    weights: None,
-                    center: false,
-                    fn_params: None,
-                })
-                .alias("TWAP_7d"),
-        )
-        .collect()?;
+    let required_window_size = 24 * 7;
 
-    Ok(df)
+    tracing::debug!("DataFrame shape before TWAP: {:?}", df.shape());
+
+    if df.height() < required_window_size {
+        return Err(err!(
+            "Insufficient data: At least {} data points are required, but only {} provided.",
+            required_window_size,
+            df.height()
+        ));
+    }
+
+    let lazy_df = df.lazy().with_column(
+        col("base_fee")
+            .rolling_mean(RollingOptionsFixedWindow {
+                window_size: required_window_size,
+                min_periods: 1,
+                weights: None,
+                center: false,
+                fn_params: None,
+            })
+            .alias("TWAP_7d"),
+    );
+
+    let df = lazy_df.collect()?;
+    tracing::debug!("DataFrame shape after TWAP: {:?}", df.shape());
+
+    Ok(df.fill_null(FillNullStrategy::Backward(None))?)
 }
 
 /// Groups the DataFrame by 1-hour intervals and aggregates specified columns.
@@ -608,21 +640,25 @@ fn add_twap_7d(df: DataFrame) -> Result<DataFrame> {
 /// * The grouping or aggregation operations fail.
 /// * The final collection of the lazy DataFrame fails.
 ///
+// Instead of grouping, just sort the data
 fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
+    tracing::debug!("DataFrame shape before sorting: {:?}", df.shape());
+
     let df = df
         .lazy()
-        .group_by_dynamic(
-            col("date"),
-            [],
-            DynamicGroupOptions {
-                every: Duration::parse("1h"),
-                period: Duration::parse("1h"),
-                offset: Duration::parse("0"),
-                ..Default::default()
+        .sort(
+            vec!["date"],
+            SortMultipleOptions {
+                descending: vec![false],
+                nulls_last: vec![true],
+                multithreaded: true,
+                maintain_order: false,
             },
         )
-        .agg([col("base_fee").mean()])
         .collect()?;
+
+    tracing::debug!("DataFrame shape after sorting: {:?}", df.shape());
+    tracing::debug!("DataFrame: {:?}", df);
 
     Ok(df)
 }
@@ -649,16 +685,39 @@ fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
 /// * The conversion to milliseconds or casting to datetime fails.
 /// * The column replacement or renaming operations fail.
 ///
-fn replace_timestamp_with_date(mut df: DataFrame) -> Result<DataFrame> {
+fn replace_timestamp_with_date(df: DataFrame) -> Result<DataFrame> {
+    tracing::debug!("DataFrame shape before date conversion: {:?}", df.shape());
+    tracing::debug!(
+        "Time range: min={:?}, max={:?}",
+        df.column("timestamp")?.i64()?.min(),
+        df.column("timestamp")?.i64()?.max()
+    );
+
     let dates = df
         .column("timestamp")?
         .i64()?
-        .apply(|s| s.map(|s| s * 1000)) // convert into milliseconds
+        .apply(|s| s.map(|s| s * 1000))
         .into_series()
-        .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))?;
+        .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))?
+        .rename("date")
+        .clone();
 
-    df.replace("timestamp", dates)?;
-    df.rename("timestamp", "date")?;
+    // Create a new DataFrame with the date column instead of timestamp
+    let mut new_cols: Vec<Series> = Vec::new();
+    for col in df.get_columns() {
+        if col.name() != "timestamp" {
+            new_cols.push(col.clone());
+        }
+    }
+    new_cols.push(dates);
+
+    let df = DataFrame::new(new_cols)?;
+
+    tracing::debug!("DataFrame shape after date conversion: {:?}", df.shape());
+    tracing::debug!(
+        "DataFrame columns after conversion: {:?}",
+        df.get_column_names()
+    );
 
     Ok(df)
 }
