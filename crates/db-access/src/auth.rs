@@ -13,20 +13,20 @@ pub async fn add_api_key(pool: &PgPool, key: String, name: String) -> Result<(),
     Ok(())
 }
 
-pub async fn find_api_key(pool: &PgPool, key: String) -> Result<ApiKey, Error> {
-    let result = sqlx::query_as!(
+pub async fn find_api_key(pool: &PgPool, key: String) -> Result<ApiKey, sqlx::Error> {
+    tracing::debug!("Searching for API key: {}", key);
+    let api_key = sqlx::query_as!(
         ApiKey,
         r#"
-        SELECT
-            key,
-            name
+        SELECT key, name as "name?"
         FROM api_keys
         WHERE key = $1
-    "#,
+        "#,
         key
     )
     .fetch_one(pool)
     .await?;
 
-    Ok(result)
+    tracing::debug!("Found API key: {:?}", api_key);
+    Ok(api_key)
 }

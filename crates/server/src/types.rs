@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 // timestamp ranges for each sub-job calculation
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct PitchLakeJobRequestParams {
     pub twap: (i64, i64),
     pub volatility: (i64, i64),

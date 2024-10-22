@@ -1,4 +1,5 @@
 use eth_rlp_verify::block_header::BlockHeader as EthBlockHeader;
+use std::fmt;
 
 #[derive(sqlx::FromRow, Debug)]
 pub struct BlockHeader {
@@ -42,27 +43,42 @@ pub struct ApiKey {
     pub name: Option<String>,
 }
 
-#[derive(Debug, sqlx::Type)]
+#[derive(sqlx::Type, Debug, PartialEq)]
+#[sqlx(type_name = "TEXT")]
 pub enum JobStatus {
-    Completed,
     Pending,
+    Completed,
     Failed,
 }
 
-impl JobStatus {
-    pub fn as_str(&self) -> &'static str {
+impl fmt::Display for JobStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JobStatus::Completed => "Completed",
-            JobStatus::Pending => "Pending",
-            JobStatus::Failed => "Failed",
+            JobStatus::Pending => write!(f, "Pending"),
+            JobStatus::Completed => write!(f, "Completed"),
+            JobStatus::Failed => write!(f, "Failed"),
         }
     }
 }
+
+// impl FromStr for JobStatus {
+//     type Err = ();
+
+//     fn from_str(s: &str) -> Result<Self, Self::Err> {
+//         match s {
+//             "Pending" => Ok(JobStatus::Pending),
+//             "Completed" => Ok(JobStatus::Completed),
+//             "Failed" => Ok(JobStatus::Failed),
+//             _ => Err(()),
+//         }
+//     }
+// }
 
 #[derive(sqlx::FromRow, Debug)]
 pub struct JobRequest {
     pub job_id: String,
     pub status: JobStatus,
+    pub created_at: chrono::NaiveDateTime,
 }
 
 #[derive(Debug, sqlx::FromRow)]

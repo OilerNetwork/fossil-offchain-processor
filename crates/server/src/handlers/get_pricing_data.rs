@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{extract::State, http::StatusCode, Json};
 use db_access::{
     models::JobStatus,
@@ -9,21 +11,42 @@ use db_access::{
 use starknet_crypto::{poseidon_hash_single, Felt};
 use tokio::{join, time::Instant};
 
-use crate::pricing_data::{
-    reserve_price::calculate_reserve_price, twap::calculate_twap, volatility::calculate_volatility,
-};
 use crate::types::{JobResponse, PitchLakeJobRequest};
+use crate::{
+    pricing_data::{
+        reserve_price::calculate_reserve_price, twap::calculate_twap,
+        volatility::calculate_volatility,
+    },
+    types::PitchLakeJobRequestParams,
+};
+
+use crate::AppState;
 
 pub async fn get_pricing_data(
-    State(db): State<DbConnection>,
+    State(state): State<AppState>,
     Json(payload): Json<PitchLakeJobRequest>,
 ) -> (StatusCode, Json<JobResponse>) {
+    if payload.identifiers.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(JobResponse {
+                job_id: String::new(),
+                message: "Identifiers cannot be empty.".to_string(),
+                status_url: String::new(),
+            }),
+        );
+    }
+
+    if let Err((status, response)) = validate_time_ranges(&payload.params) {
+        return (status, Json(response));
+    }
+
     let job_id = poseidon_hash_single(Felt::from_bytes_be_slice(
         payload.identifiers.join("").as_bytes(),
     ))
     .to_string();
 
-    match get_job_request(&db.pool, &job_id).await {
+    match get_job_request(&state.db.pool, &job_id).await {
         Ok(Some(job_request)) => match job_request.status {
             JobStatus::Pending => (
                 StatusCode::CONFLICT,
@@ -45,14 +68,15 @@ pub async fn get_pricing_data(
             ),
             JobStatus::Failed => {
                 // Reprocess the failed job
-                if let Err(e) = update_job_status(&db.pool, &job_id, JobStatus::Pending).await {
+                if let Err(e) = update_job_status(&state.db.pool, &job_id, JobStatus::Pending).await
+                {
                     return (StatusCode::INTERNAL_SERVER_ERROR, Json(JobResponse {
                         job_id: job_id.clone(),
                         message: format!("Previous job request failed. An error occurred while updating job status: {}", e).to_string(),
                         status_url: format!("/job_status/{}", job_id),
                     }));
                 }
-                tokio::spawn(process_job(db.clone(), job_id.clone(), payload));
+                tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
 
                 (
                     StatusCode::OK,
@@ -66,41 +90,48 @@ pub async fn get_pricing_data(
         },
         Ok(None) => {
             // New job
-            if let Err(e) = create_job_request(&db.pool, &job_id, JobStatus::Pending).await {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(JobResponse {
-                        job_id: job_id.clone(),
-                        message: format!("An error occurred while creating the job: {}", e)
-                            .to_string(),
-                        status_url: format!("/job_status/{}", job_id),
-                    }),
-                );
-            }
-            tokio::spawn(process_job(db.clone(), job_id.clone(), payload));
+            match create_job_request(&state.db.pool, &job_id, JobStatus::Pending).await {
+                Ok(_) => {
+                    tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
 
+                    (
+                        StatusCode::CREATED,
+                        Json(JobResponse {
+                            job_id: job_id.clone(),
+                            message: "New job request registered and processing initiated."
+                                .to_string(),
+                            status_url: format!("/job_status/{}", job_id),
+                        }),
+                    )
+                }
+                Err(e) => {
+                    tracing::error!("Failed to create job request: {:?}", e);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(JobResponse {
+                            job_id: job_id.clone(),
+                            message: format!("An error occurred while creating the job: {}", e),
+                            status_url: format!("/job_status/{}", job_id),
+                        }),
+                    )
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to get job request: {:?}", e);
             (
-                StatusCode::CREATED,
+                StatusCode::INTERNAL_SERVER_ERROR,
                 Json(JobResponse {
                     job_id: job_id.clone(),
-                    message: "New job request registered and processing initiated.".to_string(),
+                    message: format!("An error occurred while processing the request: {}", e),
                     status_url: format!("/job_status/{}", job_id),
                 }),
             )
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(JobResponse {
-                job_id: job_id.clone(),
-                message: format!("An error occurred while processing the request: {}", e)
-                    .to_string(),
-                status_url: format!("/job_status/{}", job_id),
-            }),
-        ),
     }
 }
 
-async fn process_job(db: DbConnection, job_id: String, payload: PitchLakeJobRequest) {
+async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJobRequest) {
     let block_headers_for_calculations = join!(
         get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),
         get_block_headers_by_time_range(
@@ -161,5 +192,221 @@ async fn process_job(db: DbConnection, job_id: String, payload: PitchLakeJobRequ
             let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed).await;
             // TODO: Send failure callback
         }
+    }
+}
+
+fn validate_time_ranges(
+    params: &PitchLakeJobRequestParams,
+) -> Result<(), (StatusCode, JobResponse)> {
+    let validations = [
+        ("TWAP", params.twap),
+        ("volatility", params.volatility),
+        ("reserve price", params.reserve_price),
+    ];
+
+    for &(name, (start, end)) in validations.iter() {
+        if start >= end {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                JobResponse {
+                    job_id: String::new(),
+                    message: format!("Invalid time range for {} calculation.", name),
+                    status_url: String::new(),
+                },
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::handlers::fixtures::TestContext;
+    use crate::types::{PitchLakeJobRequest, PitchLakeJobRequestParams};
+    use axum::http::StatusCode;
+
+    #[tokio::test]
+    async fn test_get_pricing_data_new_job() {
+        let ctx = TestContext::new().await;
+
+        let payload = PitchLakeJobRequest {
+            identifiers: vec!["test-id".to_string()],
+            params: PitchLakeJobRequestParams {
+                twap: (0, 100),
+                volatility: (0, 100),
+                reserve_price: (0, 100),
+            },
+        };
+
+        let (status, Json(response)) = ctx.get_pricing_data(payload).await;
+
+        assert_eq!(status, StatusCode::CREATED);
+        assert!(!response.job_id.is_empty());
+        assert_eq!(
+            response.message,
+            "New job request registered and processing initiated."
+        );
+        assert!(response.status_url.starts_with("/job_status/"));
+    }
+
+    #[tokio::test]
+    async fn test_get_pricing_data_pending_job() {
+        let ctx = TestContext::new().await;
+
+        let job_id =
+            poseidon_hash_single(Felt::from_bytes_be_slice("test-id".as_bytes())).to_string();
+        ctx.create_job(&job_id, JobStatus::Pending).await;
+
+        let payload = PitchLakeJobRequest {
+            identifiers: vec!["test-id".to_string()],
+            params: PitchLakeJobRequestParams {
+                twap: (0, 100),
+                volatility: (0, 100),
+                reserve_price: (0, 100),
+            },
+        };
+
+        let (status, Json(response)) = ctx.get_pricing_data(payload).await;
+
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(response.job_id, job_id);
+        assert_eq!(
+            response.message,
+            "Job is already pending. Use the status endpoint to monitor progress."
+        );
+        assert_eq!(response.status_url, format!("/job_status/{}", job_id));
+    }
+
+    #[tokio::test]
+    async fn test_get_pricing_data_completed_job() {
+        let ctx = TestContext::new().await;
+
+        let job_id =
+            poseidon_hash_single(Felt::from_bytes_be_slice("test-id".as_bytes())).to_string();
+        ctx.create_job(&job_id, JobStatus::Completed).await;
+
+        let payload = PitchLakeJobRequest {
+            identifiers: vec!["test-id".to_string()],
+            params: PitchLakeJobRequestParams {
+                twap: (0, 100),
+                volatility: (0, 100),
+                reserve_price: (0, 100),
+            },
+        };
+
+        let (status, Json(response)) = ctx.get_pricing_data(payload).await;
+
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(response.job_id, job_id);
+        assert_eq!(
+            response.message,
+            "Job has already been completed. No further processing required."
+        );
+        assert_eq!(response.status_url, format!("/job_status/{}", job_id));
+    }
+
+    #[tokio::test]
+    async fn test_get_pricing_data_failed_job() {
+        let ctx = TestContext::new().await;
+
+        let job_id =
+            poseidon_hash_single(Felt::from_bytes_be_slice("test-id".as_bytes())).to_string();
+        ctx.create_job(&job_id, JobStatus::Failed).await;
+
+        let payload = PitchLakeJobRequest {
+            identifiers: vec!["test-id".to_string()],
+            params: PitchLakeJobRequestParams {
+                twap: (0, 100),
+                volatility: (0, 100),
+                reserve_price: (0, 100),
+            },
+        };
+
+        let (status, Json(response)) = ctx.get_pricing_data(payload).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(response.job_id, job_id);
+        assert_eq!(
+            response.message,
+            "Previous job request failed. Reprocessing initiated."
+        );
+        assert_eq!(response.status_url, format!("/job_status/{}", job_id));
+
+        // Verify that the job status was updated to Pending
+        let (_, Json(status_response)) = ctx.get_job_status(&job_id).await;
+        assert_eq!(status_response["status"], "Pending");
+    }
+
+    #[tokio::test]
+    async fn test_get_pricing_data_multiple_identifiers() {
+        let ctx = TestContext::new().await;
+
+        let payload = PitchLakeJobRequest {
+            identifiers: vec!["id1".to_string(), "id2".to_string(), "id3".to_string()],
+            params: PitchLakeJobRequestParams {
+                twap: (0, 100),
+                volatility: (0, 100),
+                reserve_price: (0, 100),
+            },
+        };
+
+        let (status, Json(response)) = ctx.get_pricing_data(payload).await;
+
+        assert_eq!(status, StatusCode::CREATED);
+        assert!(!response.job_id.is_empty());
+        assert_eq!(
+            response.message,
+            "New job request registered and processing initiated."
+        );
+        assert!(response.status_url.starts_with("/job_status/"));
+
+        // Verify that the job_id is a hash of all identifiers
+        let expected_job_id =
+            poseidon_hash_single(Felt::from_bytes_be_slice("id1id2id3".as_bytes())).to_string();
+        assert_eq!(response.job_id, expected_job_id);
+    }
+
+    #[tokio::test]
+    async fn test_get_pricing_data_empty_identifiers() {
+        let ctx = TestContext::new().await;
+
+        let payload = PitchLakeJobRequest {
+            identifiers: vec![],
+            params: PitchLakeJobRequestParams {
+                twap: (0, 100), // Invalid range
+                volatility: (0, 100),
+                reserve_price: (0, 100),
+            },
+        };
+
+        let (status, Json(response)) = ctx.get_pricing_data(payload).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(response.message, "Identifiers cannot be empty.");
+        assert!(response.job_id.is_empty());
+        assert!(response.status_url.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_pricing_data_invalid_params() {
+        let ctx = TestContext::new().await;
+
+        let payload = PitchLakeJobRequest {
+            identifiers: vec!["test-id".to_string()],
+            params: PitchLakeJobRequestParams {
+                twap: (100, 0), // Invalid range
+                volatility: (0, 100),
+                reserve_price: (0, 100),
+            },
+        };
+
+        let (status, Json(response)) = ctx.get_pricing_data(payload).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(response.message, "Invalid time range for TWAP calculation.");
+        assert!(response.job_id.is_empty());
+        assert!(response.status_url.is_empty());
     }
 }

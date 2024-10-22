@@ -200,11 +200,9 @@ pub async fn create_job_request(
     status: JobStatus,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
-        r#"
-        INSERT INTO job_requests (job_id, status) VALUES ($1, $2)
-        "#,
+        "INSERT INTO job_requests (job_id, status) VALUES ($1, $2)",
         job_id,
-        status.as_str()
+        status.to_string()
     )
     .execute(pool)
     .await?;
@@ -219,8 +217,11 @@ pub async fn get_job_request(
     sqlx::query_as!(
         JobRequest,
         r#"
-        SELECT job_id, status as "status: JobStatus"
-        FROM job_requests
+        SELECT 
+            job_id, 
+            status as "status: JobStatus", 
+            created_at
+        FROM job_requests 
         WHERE job_id = $1
         "#,
         job_id
@@ -240,7 +241,7 @@ pub async fn update_job_status(
         SET status = $1
         WHERE job_id = $2
         "#,
-        status.as_str(),
+        status.to_string(),
         job_id
     )
     .execute(pool)
