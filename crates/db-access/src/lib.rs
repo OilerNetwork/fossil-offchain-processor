@@ -8,17 +8,19 @@ pub mod rpc;
 pub mod utils;
 
 use dotenv::dotenv;
-use sqlx::postgres::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use sqlx::{Pool, Postgres};
 use std::env;
+use std::sync::Arc;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct DbConnection {
-    pub pool: PgPool,
+    pub pool: Pool<Postgres>,
 }
 
+// Use Arc to allow thread-safe cloning
 impl DbConnection {
-    pub async fn new() -> Result<Self, sqlx::Error> {
+    pub async fn new() -> Result<Arc<Self>, sqlx::Error> {
         dotenv().ok();
         let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
@@ -27,6 +29,6 @@ impl DbConnection {
             .connect(&database_url)
             .await?;
 
-        Ok(Self { pool })
+        Ok(Arc::new(Self { pool }))
     }
 }
