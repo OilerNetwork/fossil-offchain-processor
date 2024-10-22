@@ -9,5 +9,4 @@ CREATE TABLE IF NOT EXISTS public.api_keys (
 );
 ALTER TABLE IF EXISTS public.api_keys OWNER TO postgres;
 
--- Down: Drop api_keys table
-DROP TABLE IF EXISTS public.api_keys;
+

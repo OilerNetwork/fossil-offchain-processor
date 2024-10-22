@@ -19,6 +19,3 @@ ALTER TABLE IF EXISTS public.transactions OWNER TO postgres;
 
 CREATE INDEX IF NOT EXISTS transactions_blocknumber_idx ON public.transactions (block_number ASC NULLS LAST);
 
--- Down: Drop transactions table and index
-DROP INDEX IF EXISTS public.transactions_blocknumber_idx;
-DROP TABLE IF EXISTS public.transactions;

@@ -8,5 +8,3 @@ CREATE TABLE IF NOT EXISTS public.job_requests (
 );
 ALTER TABLE IF EXISTS public.job_requests OWNER TO postgres;
 
--- Down: Drop job_requests table
-DROP TABLE IF EXISTS public.job_requests;
