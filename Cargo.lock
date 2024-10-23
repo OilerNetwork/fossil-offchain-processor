@@ -2162,6 +2162,7 @@ dependencies = [
  "eth-rlp-verify",
  "eyre",
  "reqwest 0.11.27",
+ "serde",
  "serde_json",
  "sqlx 0.7.4",
  "tokio",

@@ -1,35 +1,37 @@
+use crate::types::{ErrorResponse, GetJobStatusResponseEnum, JobResponse};
 use crate::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use db_access::queries::get_job_request;
-use serde_json::json;
-// use chrono::{DateTime, Utc};
 
 #[axum::debug_handler]
 pub async fn get_job_status(
-    State(state): State<AppState>,
-    Path(job_id): Path<String>,
-) -> (StatusCode, Json<serde_json::Value>) {
+    State(state): State<AppState>, // Use AppState as the state
+    axum::extract::Path(job_id): axum::extract::Path<String>,
+) -> (StatusCode, Json<GetJobStatusResponseEnum>) {
     match get_job_request(&state.db.pool, &job_id).await {
         Ok(Some(job)) => (
             StatusCode::OK,
-            Json(json!({
-                "job_id": job.job_id,
-                "status": job.status.to_string(),
-                "created_at": job.created_at.and_utc(), // Ensure correct timezone
-                "result": job.result.unwrap_or(json!(null)), // Handle optional result
+            Json(GetJobStatusResponseEnum::Success(JobResponse {
+                job_id: job.job_id,
+                message: None,
+                status: Some(job.status),
             })),
         ),
         Ok(None) => (
             StatusCode::NOT_FOUND,
-            Json(json!({"error": "Job not found"})),
+            Json(GetJobStatusResponseEnum::Error(ErrorResponse {
+                error: "Job not found".to_string(),
+            })),
         ),
         Err(e) => {
             tracing::error!("Failed to get job status: {:?}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": "An internal error occurred. Please try again later."})),
+                Json(GetJobStatusResponseEnum::Error(ErrorResponse {
+                    error: "An internal error occurred. Please try again later.".to_string(),
+                })),
             )
         }
     }
@@ -37,7 +39,8 @@ pub async fn get_job_status(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use core::panic;
+
     use crate::handlers::fixtures::TestContext;
     use axum::http::StatusCode;
     use db_access::models::JobStatus;
@@ -50,8 +53,13 @@ mod tests {
 
         let (status, Json(response)) = ctx.get_job_status(job_id).await;
 
+        let response = match response {
+            GetJobStatusResponseEnum::Error(err_response) => err_response,
+            GetJobStatusResponseEnum::Success(_) => panic!("Unexpected response status"),
+        };
+
         assert_eq!(status, StatusCode::NOT_FOUND);
-        assert_eq!(response["error"], "Job not found");
+        assert_eq!(response.error, "Job not found");
     }
 
     #[tokio::test]
@@ -63,13 +71,14 @@ mod tests {
 
         let (status, Json(response)) = ctx.get_job_status(job_id).await;
 
+        let response = match response {
+            GetJobStatusResponseEnum::Success(success_res) => success_res,
+            GetJobStatusResponseEnum::Error(_) => panic!("Unexpected response status"),
+        };
+
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(response["job_id"], job_id);
-        assert_eq!(response["status"], "Pending");
-        assert!(
-            response["result"].is_null(),
-            "Result should be null for pending jobs"
-        );
+        assert_eq!(response.job_id, job_id);
+        assert_eq!(response.status.unwrap(), JobStatus::Pending);
     }
 
     #[tokio::test]
@@ -81,13 +90,14 @@ mod tests {
 
         let (status, Json(response)) = ctx.get_job_status(job_id).await;
 
+        let response = match response {
+            GetJobStatusResponseEnum::Success(success_res) => success_res,
+            GetJobStatusResponseEnum::Error(_) => panic!("Unexpected response status"),
+        };
+
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(response["job_id"], job_id);
-        assert_eq!(response["status"], "Failed");
-        assert!(
-            response["result"].is_null(),
-            "Result should be null for failed jobs"
-        );
+        assert_eq!(response.job_id, job_id);
+        assert_eq!(response.status.unwrap(), JobStatus::Failed);
     }
 
     #[tokio::test]
@@ -107,12 +117,13 @@ mod tests {
 
         let (status, Json(response)) = ctx.get_job_status(job_id).await;
 
+        let response = match response {
+            GetJobStatusResponseEnum::Success(success_res) => success_res,
+            GetJobStatusResponseEnum::Error(_) => panic!("Unexpected response status"),
+        };
+
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(response["job_id"], job_id);
-        assert_eq!(response["status"], "Completed");
-        assert_eq!(
-            response["result"], sample_result,
-            "Result does not match expected value"
-        );
+        assert_eq!(response.job_id, job_id);
+        assert_eq!(response.status.unwrap(), JobStatus::Completed);
     }
 }

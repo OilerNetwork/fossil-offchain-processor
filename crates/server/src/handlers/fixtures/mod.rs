@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    types::{JobResponse, PitchLakeJobRequest},
+    types::{GetJobStatusResponseEnum, JobResponse, PitchLakeJobRequest},
     AppState,
 };
 use axum::{extract::State, Json};
@@ -68,8 +68,10 @@ impl TestContext {
             .expect("Failed to create job request");
     }
 
-    /// Retrieves the job status using the `/job_status` endpoint.
-    pub async fn get_job_status(&self, job_id: &str) -> (StatusCode, Json<serde_json::Value>) {
+    pub async fn get_job_status(
+        &self,
+        job_id: &str,
+    ) -> (StatusCode, Json<GetJobStatusResponseEnum>) {
         get_job_status(
             State(self.app_state.clone()),
             axum::extract::Path(job_id.to_string()),

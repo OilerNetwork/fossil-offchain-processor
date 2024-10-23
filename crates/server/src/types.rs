@@ -1,3 +1,4 @@
+use db_access::models::JobStatus;
 use serde::{Deserialize, Serialize};
 use starknet_crypto::Felt;
 
@@ -26,22 +27,18 @@ pub struct ClientInfo {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct JobResponse {
     pub job_id: String,
-    pub message: String,
-    pub status_url: String,
+    pub message: Option<String>,
+    pub status: Option<JobStatus>,
 }
 
-#[derive(Serialize)]
-pub struct JobStatusResponse {
-    pub job_id: String,
-    pub status: String,
-}
-
-#[derive(Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct AuthErrorResponse {
-    pub error: String,
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum GetJobStatusResponseEnum {
+    Success(JobResponse),
+    Error(ErrorResponse),
 }
