@@ -31,8 +31,8 @@ pub async fn get_pricing_data(
             StatusCode::BAD_REQUEST,
             Json(JobResponse {
                 job_id: String::new(),
-                message: "Identifiers cannot be empty.".to_string(),
-                status_url: String::new(),
+                message: Some("Identifiers cannot be empty.".to_string()),
+                status: None,
             }),
         );
     }
@@ -52,18 +52,22 @@ pub async fn get_pricing_data(
                 StatusCode::CONFLICT,
                 Json(JobResponse {
                     job_id: job_id.clone(),
-                    message: "Job is already pending. Use the status endpoint to monitor progress."
-                        .to_string(),
-                    status_url: format!("/job_status/{}", job_id),
+                    message: Some(
+                        "Job is already pending. Use the status endpoint to monitor progress."
+                            .to_string(),
+                    ),
+                    status: Some(JobStatus::Pending),
                 }),
             ),
             JobStatus::Completed => (
                 StatusCode::CONFLICT,
                 Json(JobResponse {
                     job_id: job_id.clone(),
-                    message: "Job has already been completed. No further processing required."
-                        .to_string(),
-                    status_url: format!("/job_status/{}", job_id),
+                    message: Some(
+                        "Job has already been completed. No further processing required."
+                            .to_string(),
+                    ),
+                    status: Some(JobStatus::Completed),
                 }),
             ),
             JobStatus::Failed => {
@@ -72,8 +76,8 @@ pub async fn get_pricing_data(
                 {
                     return (StatusCode::INTERNAL_SERVER_ERROR, Json(JobResponse {
                         job_id: job_id.clone(),
-                        message: format!("Previous job request failed. An error occurred while updating job status: {}", e).to_string(),
-                        status_url: format!("/job_status/{}", job_id),
+                        message: Some(format!("Previous job request failed. An error occurred while updating job status: {}", e).to_string()),
+                        status: Some(JobStatus::Failed)
                     }));
                 }
 
@@ -89,8 +93,10 @@ pub async fn get_pricing_data(
                     StatusCode::OK,
                     Json(JobResponse {
                         job_id: job_id.clone(),
-                        message: "Previous job request failed. Reprocessing initiated.".to_string(),
-                        status_url: format!("/job_status/{}", job_id),
+                        message: Some(
+                            "Previous job request failed. Reprocessing initiated.".to_string(),
+                        ),
+                        status: Some(JobStatus::Pending),
                     }),
                 )
             }
@@ -111,9 +117,10 @@ pub async fn get_pricing_data(
                         StatusCode::CREATED,
                         Json(JobResponse {
                             job_id: job_id.clone(),
-                            message: "New job request registered and processing initiated."
-                                .to_string(),
-                            status_url: format!("/job_status/{}", job_id),
+                            message: Some(
+                                "New job request registered and processing initiated.".to_string(),
+                            ),
+                            status: Some(JobStatus::Pending),
                         }),
                     )
                 }
@@ -123,8 +130,11 @@ pub async fn get_pricing_data(
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(JobResponse {
                             job_id: job_id.clone(),
-                            message: format!("An error occurred while creating the job: {}", e),
-                            status_url: format!("/job_status/{}", job_id),
+                            message: Some(format!(
+                                "An error occurred while creating the job: {}",
+                                e
+                            )),
+                            status: Some(JobStatus::Failed),
                         }),
                     )
                 }
@@ -136,8 +146,11 @@ pub async fn get_pricing_data(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(JobResponse {
                     job_id: job_id.clone(),
-                    message: format!("An error occurred while processing the request: {}", e),
-                    status_url: format!("/job_status/{}", job_id),
+                    message: Some(format!(
+                        "An error occurred while processing the request: {}",
+                        e
+                    )),
+                    status: Some(JobStatus::Failed),
                 }),
             )
         }
@@ -223,8 +236,8 @@ fn validate_time_ranges(
                 StatusCode::BAD_REQUEST,
                 JobResponse {
                     job_id: String::new(),
-                    message: format!("Invalid time range for {} calculation.", name),
-                    status_url: String::new(),
+                    message: Some(format!("Invalid time range for {} calculation.", name)),
+                    status: None,
                 },
             ));
         }
@@ -237,7 +250,7 @@ fn validate_time_ranges(
 mod tests {
     use super::*;
     use crate::handlers::fixtures::TestContext;
-    use crate::types::{PitchLakeJobRequest, PitchLakeJobRequestParams};
+    use crate::types::{GetJobStatusResponseEnum, PitchLakeJobRequest, PitchLakeJobRequestParams};
     use axum::http::StatusCode;
 
     #[tokio::test]
@@ -258,10 +271,10 @@ mod tests {
         assert_eq!(status, StatusCode::CREATED);
         assert!(!response.job_id.is_empty());
         assert_eq!(
-            response.message,
+            response.message.unwrap(),
             "New job request registered and processing initiated."
         );
-        assert!(response.status_url.starts_with("/job_status/"));
+        assert_eq!(response.status.unwrap(), JobStatus::Pending);
     }
 
     #[tokio::test]
@@ -286,10 +299,10 @@ mod tests {
         assert_eq!(status, StatusCode::CONFLICT);
         assert_eq!(response.job_id, job_id);
         assert_eq!(
-            response.message,
+            response.message.unwrap(),
             "Job is already pending. Use the status endpoint to monitor progress."
         );
-        assert_eq!(response.status_url, format!("/job_status/{}", job_id));
+        assert_eq!(response.status.unwrap(), JobStatus::Pending);
     }
 
     #[tokio::test]
@@ -314,10 +327,10 @@ mod tests {
         assert_eq!(status, StatusCode::CONFLICT);
         assert_eq!(response.job_id, job_id);
         assert_eq!(
-            response.message,
+            response.message.unwrap(),
             "Job has already been completed. No further processing required."
         );
-        assert_eq!(response.status_url, format!("/job_status/{}", job_id));
+        assert_eq!(response.status.unwrap(), JobStatus::Completed)
     }
 
     #[tokio::test]
@@ -342,14 +355,20 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(response.job_id, job_id);
         assert_eq!(
-            response.message,
+            response.message.unwrap(),
             "Previous job request failed. Reprocessing initiated."
         );
-        assert_eq!(response.status_url, format!("/job_status/{}", job_id));
+        assert_eq!(response.status.unwrap(), JobStatus::Pending);
 
         // Verify that the job status was updated to Pending
         let (_, Json(status_response)) = ctx.get_job_status(&job_id).await;
-        assert_eq!(status_response["status"], "Pending");
+
+        let status_response = match status_response {
+            GetJobStatusResponseEnum::Success(success_res) => success_res,
+            GetJobStatusResponseEnum::Error(_) => panic!("Unexpected response status"),
+        };
+
+        assert_eq!(status_response.status.unwrap(), JobStatus::Pending);
     }
 
     #[tokio::test]
@@ -370,10 +389,10 @@ mod tests {
         assert_eq!(status, StatusCode::CREATED);
         assert!(!response.job_id.is_empty());
         assert_eq!(
-            response.message,
+            response.message.unwrap(),
             "New job request registered and processing initiated."
         );
-        assert!(response.status_url.starts_with("/job_status/"));
+        assert_eq!(response.status.unwrap(), JobStatus::Pending);
 
         // Verify that the job_id is a hash of all identifiers
         let expected_job_id =
@@ -397,9 +416,9 @@ mod tests {
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
-        assert_eq!(response.message, "Identifiers cannot be empty.");
+        assert_eq!(response.message.unwrap(), "Identifiers cannot be empty.");
         assert!(response.job_id.is_empty());
-        assert!(response.status_url.is_empty());
+        assert_eq!(response.status, None)
     }
 
     #[tokio::test]
@@ -418,8 +437,11 @@ mod tests {
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
-        assert_eq!(response.message, "Invalid time range for TWAP calculation.");
+        assert_eq!(
+            response.message.unwrap(),
+            "Invalid time range for TWAP calculation."
+        );
         assert!(response.job_id.is_empty());
-        assert!(response.status_url.is_empty());
+        assert_eq!(response.status, None)
     }
 }
