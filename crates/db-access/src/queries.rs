@@ -330,4 +330,3 @@ pub async fn update_job_result(
 
     Ok(())
 }
-
