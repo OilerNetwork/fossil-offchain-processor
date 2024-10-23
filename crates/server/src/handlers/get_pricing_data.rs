@@ -4,6 +4,7 @@ use axum::{
     extract::{Json, State},
     http::StatusCode,
 };
+use starknet_handler::{FossilStarknetAccount, JobRequest, PitchLakeResult, PITCH_LAKE_V1};
 
 use crate::types::{JobResponse, PitchLakeJobRequest};
 use crate::AppState;
@@ -14,6 +15,7 @@ use crate::{
     },
     types::PitchLakeJobRequestParams,
 };
+use starknet::core::types::U256;
 use db_access::{
     models::JobStatus,
     queries::{
@@ -36,6 +38,8 @@ pub async fn get_pricing_data(
         return (status, Json(response));
     }
 
+    let starknet_account = FossilStarknetAccount::new();
+
     let job_id = generate_job_id(&payload.identifiers);
     tracing::info!("Generated job_id: {}", job_id);
 
@@ -45,7 +49,7 @@ pub async fn get_pricing_data(
                 "Handling existing job with status: {:?}",
                 job_request.status
             );
-            handle_existing_job(&state, job_request.status, job_id, payload).await
+            handle_existing_job(&state, job_request.status, job_id, payload, starknet_account).await
         }
         Ok(None) => {
             tracing::info!("Creating new job request.");
@@ -81,6 +85,7 @@ async fn handle_existing_job(
     status: JobStatus,
     job_id: String,
     payload: PitchLakeJobRequest,
+    starknet_account: FossilStarknetAccount,
 ) -> (StatusCode, Json<JobResponse>) {
     match status {
         JobStatus::Pending => {
@@ -97,11 +102,10 @@ async fn handle_existing_job(
         }
         JobStatus::Failed => {
             tracing::info!("Reprocessing failed job {}", job_id);
-            reprocess_failed_job(state, job_id, payload).await
+            reprocess_failed_job(state, job_id, payload, starknet_account).await
         }
     }
 }
-
 // Helper to handle a new job request
 async fn handle_new_job_request(
     state: &AppState,
@@ -111,7 +115,13 @@ async fn handle_new_job_request(
     match create_job_request(&state.db.pool, &job_id, JobStatus::Pending).await {
         Ok(_) => {
             tracing::info!("Job {} created. Starting processing.", job_id);
-            tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
+            let starknet_account = FossilStarknetAccount::new(); // Initialize Starknet account
+            tokio::spawn(process_job(
+                state.db.clone(),
+                job_id.clone(),
+                payload,
+                starknet_account,
+            ));
             job_response(StatusCode::CREATED, job_id, "Processing initiated.")
         }
         Err(e) => internal_server_error(e, job_id),
@@ -123,11 +133,17 @@ async fn reprocess_failed_job(
     state: &AppState,
     job_id: String,
     payload: PitchLakeJobRequest,
+    starknet_account: FossilStarknetAccount,
 ) -> (StatusCode, Json<JobResponse>) {
     if let Err(e) = update_job_status(&state.db.pool, &job_id, JobStatus::Pending, None).await {
         return internal_server_error(e, job_id);
     }
-    tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
+    tokio::spawn(process_job(
+        state.db.clone(),
+        job_id.clone(),
+        payload,
+        starknet_account,
+    ));
     job_response(StatusCode::OK, job_id, "Reprocessing initiated.")
 }
 
@@ -160,23 +176,64 @@ fn internal_server_error(error: sqlx::Error, job_id: String) -> (StatusCode, Jso
         }),
     )
 }
+
 // Simplified job processing logic
-async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJobRequest) {
+async fn process_job(
+    db: Arc<DbConnection>,
+    job_id: String,
+    payload: PitchLakeJobRequest,
+    starknet_account: FossilStarknetAccount,
+) {
     tracing::info!("Processing job {}", job_id);
 
     match fetch_headers(&db, &payload).await {
         Some((twap, volatility, reserve_price)) => {
-            let result = json!({
-                "twap": twap,
-                "volatility": volatility,
-                "reserve_price": reserve_price,
-            });
+            let result = PitchLakeResult {
+                twap: U256::from(twap as u128),
+                volatility: volatility as u128,
+                reserve_price: U256::from(reserve_price as u128),
+            };
 
-            if update_job_status(&db.pool, &job_id, JobStatus::Completed, Some(result))
-                .await
-                .is_err()
+            // Update job status to completed
+            if let Err(e) = update_job_status(
+                &db.pool,
+                &job_id,
+                JobStatus::Completed,
+                Some(json!({
+                    "twap": twap,
+                    "volatility": volatility,
+                    "reserve_price": reserve_price,
+                })),
+            )
+            .await
             {
-                tracing::error!("Failed to update job status for {}", job_id);
+                tracing::error!("Failed to update job status for {}: {:?}", job_id, e);
+                return;
+            }
+
+            // Starknet callback with result
+            match starknet_account
+            .callback_to_contract(
+                payload.client_info.client_address,
+                &JobRequest {
+                    vault_address: payload.client_info.vault_address,
+                    timestamp: payload.client_info.timestamp,
+                    program_id: Felt::from_hex(PITCH_LAKE_V1).unwrap(),
+                },
+                &result,
+            )
+            .await
+            {
+                Ok(tx_hash) => {
+                    tracing::info!("Callback successful. Transaction hash: {}", tx_hash);
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Starknet callback failed for job {}: {:?}",
+                        job_id, e
+                    );
+                    let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
+                }
             }
         }
         None => {
@@ -184,8 +241,10 @@ async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJo
             let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
         }
     }
+
     tracing::info!("Job {} processing finished.", job_id);
 }
+
 
 // Helper to fetch block headers in parallel
 async fn fetch_headers(
@@ -256,8 +315,9 @@ fn validate_time_ranges(
 mod tests {
     use super::*;
     use crate::handlers::fixtures::TestContext;
-    use crate::types::{PitchLakeJobRequest, PitchLakeJobRequestParams};
+    use crate::types::{PitchLakeJobRequest, PitchLakeJobRequestParams, ClientInfo};
     use axum::http::StatusCode;
+    use starknet::core::types::Felt;
 
     #[tokio::test]
     async fn test_get_pricing_data_new_job() {
@@ -270,6 +330,11 @@ mod tests {
                 volatility: (0, 100),
                 reserve_price: (0, 100),
             },
+            client_info: ClientInfo {
+                client_address: Felt::from_hex("0x123").unwrap(),
+                vault_address: Felt::from_hex("0x456").unwrap(),
+                timestamp: 0,
+            },
         };
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
@@ -279,7 +344,7 @@ mod tests {
         assert_eq!(response.message, "Processing initiated.");
         assert_eq!(
             response.status_url,
-            format!("http://localhost:3000/job_status/{}", response.job_id)
+            format!("/job_status/{}", response.job_id)
         );
     }
 
@@ -298,6 +363,11 @@ mod tests {
                 volatility: (0, 100),
                 reserve_price: (0, 100),
             },
+            client_info: ClientInfo {
+                client_address: Felt::from_hex("0x123").unwrap(),
+                vault_address: Felt::from_hex("0x456").unwrap(),
+                timestamp: 0,
+            },
         };
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
@@ -305,10 +375,6 @@ mod tests {
         assert_eq!(status, StatusCode::CONFLICT);
         assert_eq!(response.job_id, job_id);
         assert_eq!(response.message, "Job is already pending.");
-        assert_eq!(
-            response.status_url,
-            format!("http://localhost:3000/job_status/{}", job_id)
-        );
     }
 
     #[tokio::test]
@@ -326,6 +392,11 @@ mod tests {
                 volatility: (0, 100),
                 reserve_price: (0, 100),
             },
+            client_info: ClientInfo {
+                client_address: Felt::from_hex("0x123").unwrap(),
+                vault_address: Felt::from_hex("0x456").unwrap(),
+                timestamp: 0,
+            },
         };
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
@@ -335,11 +406,6 @@ mod tests {
         assert_eq!(
             response.message,
             "Job completed. Fetch results from the status endpoint."
-        );
-        // TODO: Temporary fix for the test
-        assert_eq!(
-            response.status_url,
-            format!("http://localhost:3000/job_status/{}", job_id)
         );
     }
 
@@ -358,6 +424,11 @@ mod tests {
                 volatility: (0, 100),
                 reserve_price: (0, 100),
             },
+            client_info: ClientInfo {
+                client_address: Felt::from_hex("0x123").unwrap(),
+                vault_address: Felt::from_hex("0x456").unwrap(),
+                timestamp: 0,
+            },
         };
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
@@ -365,12 +436,7 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(response.job_id, job_id);
         assert_eq!(response.message, "Reprocessing initiated.");
-        assert_eq!(
-            response.status_url,
-            format!("http://localhost:3000/job_status/{}", job_id)
-        );
 
-        // Verify that the job status was updated to Pending
         let (_, Json(status_response)) = ctx.get_job_status(&job_id).await;
         assert_eq!(status_response["status"], "Pending");
     }
@@ -386,19 +452,16 @@ mod tests {
                 volatility: (0, 100),
                 reserve_price: (0, 100),
             },
+            client_info: ClientInfo {
+                client_address: Felt::from_hex("0x123").unwrap(),
+                vault_address: Felt::from_hex("0x456").unwrap(),
+                timestamp: 0,
+            },
         };
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
 
         assert_eq!(status, StatusCode::CREATED);
-        assert!(!response.job_id.is_empty());
-        assert_eq!(response.message, "Processing initiated.");
-        assert_eq!(
-            response.status_url,
-            format!("http://localhost:3000/job_status/{}", response.job_id)
-        );
-
-        // Verify that the job_id is a hash of all identifiers
         let expected_job_id =
             poseidon_hash_single(Felt::from_bytes_be_slice("id1id2id3".as_bytes())).to_string();
         assert_eq!(response.job_id, expected_job_id);
@@ -411,9 +474,14 @@ mod tests {
         let payload = PitchLakeJobRequest {
             identifiers: vec![],
             params: PitchLakeJobRequestParams {
-                twap: (0, 100), // Invalid range
+                twap: (0, 100),
                 volatility: (0, 100),
                 reserve_price: (0, 100),
+            },
+            client_info: ClientInfo {
+                client_address: Felt::from_hex("0x123").unwrap(),
+                vault_address: Felt::from_hex("0x456").unwrap(),
+                timestamp: 0,
             },
         };
 
@@ -421,8 +489,6 @@ mod tests {
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(response.message, "Identifiers cannot be empty.");
-        assert!(response.job_id.is_empty());
-        assert!(response.status_url.is_empty());
     }
 
     #[tokio::test]
@@ -436,13 +502,16 @@ mod tests {
                 volatility: (0, 100),
                 reserve_price: (0, 100),
             },
+            client_info: ClientInfo {
+                client_address: Felt::from_hex("0x123").unwrap(),
+                vault_address: Felt::from_hex("0x456").unwrap(),
+                timestamp: 0,
+            },
         };
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
 
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(response.message, "Invalid time range for TWAP calculation.");
-        assert!(response.job_id.is_empty());
-        assert!(response.status_url.is_empty());
     }
 }

@@ -6053,7 +6053,9 @@ dependencies = [
  "serde_json",
  "sqlx 0.7.4",
  "sqlx-database-tester",
+ "starknet 0.12.0",
  "starknet-crypto 0.7.2",
+ "starknet-handler",
  "statrs",
  "testcontainers",
  "time",
@@ -6840,7 +6842,6 @@ version = "0.1.0"
 dependencies = [
  "dotenv",
  "eyre",
- "server",
  "starknet 0.12.0",
  "starknet-crypto 0.7.2",
  "tokio",

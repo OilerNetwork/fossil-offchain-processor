@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use starknet_crypto::Felt;
 
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -12,6 +13,14 @@ pub struct PitchLakeJobRequestParams {
 pub struct PitchLakeJobRequest {
     pub identifiers: Vec<String>,
     pub params: PitchLakeJobRequestParams,
+    pub client_info: ClientInfo, // New field
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ClientInfo {
+    pub client_address: Felt,
+    pub vault_address: Felt,
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
