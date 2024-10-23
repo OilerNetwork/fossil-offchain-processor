@@ -1,14 +1,11 @@
 use super::utils::hex_string_to_f64;
 use db_access::models::BlockHeader;
 use eyre::{anyhow, Result};
-use tracing::debug;
 
 pub async fn calculate_twap(headers: Vec<BlockHeader>) -> Result<f64> {
     if headers.is_empty() {
         return Err(anyhow!("The provided block headers are empty."));
     }
-
-    debug!("Calculating TWAP for {} headers", headers.len());
 
     let total_base_fee = headers.iter().try_fold(0.0, |acc, header| -> Result<f64> {
         let base_fee = header
@@ -20,11 +17,6 @@ pub async fn calculate_twap(headers: Vec<BlockHeader>) -> Result<f64> {
     })?;
 
     let twap_result = total_base_fee / headers.len() as f64;
-
-    debug!(
-        "Total base fee: {}, TWAP result: {}",
-        total_base_fee, twap_result
-    );
 
     Ok(twap_result)
 }

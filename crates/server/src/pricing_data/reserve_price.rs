@@ -18,11 +18,6 @@ use statrs::distribution::Binomial;
 use std::f64::consts::PI;
 
 pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64> {
-    tracing::debug!(
-        "Starting reserve price calculation with {} headers",
-        block_headers.len()
-    );
-
     if block_headers.is_empty() {
         tracing::error!("No block headers provided.");
         return Err(eyre::eyre!("No block headers provided."));
@@ -49,36 +44,22 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         Series::new("base_fee", base_fees),
     ])?;
 
-    tracing::debug!("Initial DataFrame: {:?}", df);
-
     df = replace_timestamp_with_date(df)?;
     df = group_by_1h_intervals(df)?;
 
-    tracing::debug!("DataFrame after grouping: {:?}", df);
-
     df = add_twap_7d(df)?;
-    tracing::debug!(
-        "TWAP_7d column after calculation: {:?}",
-        df.column("TWAP_7d")?
-    );
-
     let twap_7d_series = df.column("TWAP_7d")?;
     let strike = twap_7d_series.f64()?.last().ok_or_else(|| {
         tracing::error!("The series is empty.");
         err!("The series is empty")
     })?;
 
-    tracing::debug!("Strike price: {}", strike);
-
-    // Proceed with further calculations...
     let num_paths = 15000;
     let n_periods = 720;
     let cap_level = 0.3;
     let risk_free_rate = 0.05;
 
     let mut df = drop_nulls(&df, "TWAP_7d")?;
-
-    tracing::debug!("DataFrame after dropping nulls: {:?}", df);
 
     let period_end_date_timestamp = df
         .column("date")?
@@ -92,12 +73,8 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         .get(0)
         .ok_or_else(|| err!("No row 0 in the date column"))?;
 
-    // The base fee logarithm is necessary to stabilize variance and make the data more suitable for linear regression analysis
     let log_base_fee = compute_log_of_base_fees(&df)?;
     df.with_column(Series::new("log_base_fee", log_base_fee))?;
-
-    // Running a linear regression to discover the trend, then removing that trend from the log base fee
-    // ===============================================================================================
 
     let (trend_model, trend_values) = discover_trend(&df)?;
     df.with_column(Series::new("trend", trend_values))?;
@@ -106,9 +83,6 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         df["log_base_fee"].f64()? - df["trend"].f64()?,
     ))?;
 
-    // Seasonality modelling amd removal from the detrended log base fee
-    // ===============================================================================================
-
     let (de_seasonalised_detrended_log_base_fee, season_param) =
         remove_seasonality(&mut df, period_start_date_timestamp)?;
     df.with_column(Series::new(
@@ -116,34 +90,21 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         de_seasonalised_detrended_log_base_fee.clone().to_vec(),
     ))?;
 
-    // Monte Carlo Parameter Estimation for the MRJ model
-    // ===============================================================================================
-
     let (de_seasonalized_detrended_simulated_prices, _params) = simulate_prices(
         de_seasonalised_detrended_log_base_fee.view(),
         n_periods,
         num_paths,
     )?;
 
-    // Calculate the total hours in the period
     let total_hours = (period_end_date_timestamp - period_start_date_timestamp) / 3600 / 1000;
-
-    // Generate an array of elapsed hours
     let sim_hourly_times: Array1<f64> =
         Array1::range(0.0, n_periods as f64, 1.0).mapv(|i| total_hours as f64 + i);
 
-    // Adding seasonality back to the simulated prices
-    // ===============================================================================================
     let c = season_matrix(sim_hourly_times);
     let season = c.dot(&season_param);
-
     let season_reshaped = season.into_shape((n_periods, 1)).unwrap();
 
-    // Broadcasting addition of season to simulated prices
     let detrended_simulated_prices = &de_seasonalized_detrended_simulated_prices + &season_reshaped;
-
-    //  Calibrating and adding stochastic trend to the simulation.
-    //  ===============================================================================================
 
     let log_twap_7d: Vec<f64> = df
         .column("TWAP_7d")?
@@ -152,37 +113,27 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         .map(|x| x.ln())
         .collect();
 
-    // Compute the difference between consecutive elements in log_twap_7d
     let returns: Vec<f64> = log_twap_7d
         .windows(2)
         .map(|window| window[1] - window[0])
         .collect();
-
-    // Drop NaNs from returns
     let returns: Vec<f64> = returns.into_iter().filter(|&x| !x.is_nan()).collect();
 
-    let mu = 0.05 / 52.0; // Weekly drift
-    let sigma = standard_deviation(returns) * f64::sqrt(24.0 * 7.0); // Weekly voldatility
+    let mu = 0.05 / 52.0;
+    let sigma = standard_deviation(returns) * f64::sqrt(24.0 * 7.0);
     let dt = 1.0 / 24.0;
 
     let mut stochastic_trend = Array2::<f64>::zeros((n_periods, num_paths));
-
-    // Generate random shocks for each path
     let normal = Normal::new(0.0, sigma * (f64::sqrt(dt))).unwrap();
     let mut rng = thread_rng();
     for i in 0..num_paths {
         let random_shocks: Vec<f64> = (0..n_periods).map(|_| normal.sample(&mut rng)).collect();
-
-        // Calculate cumulative sum for stochastic trend
         let mut cumsum = 0.0;
         for j in 0..n_periods {
             cumsum += (mu - 0.5 * sigma.powi(2)) * dt + random_shocks[j];
             stochastic_trend[[j, i]] = cumsum;
         }
     }
-
-    // Adding trend and stochastic trend to the simulation, considering the final trend value
-    // =================================================
 
     let coeffs = trend_model.params();
     let final_trend_value = {
@@ -192,17 +143,14 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 
     let mut simulated_log_prices = Array2::<f64>::zeros((n_periods, num_paths));
     for i in 0..n_periods {
-        let trend = final_trend_value; // Use the final trend value for all future time points
+        let trend = final_trend_value;
         for j in 0..num_paths {
             simulated_log_prices[[i, j]] =
                 detrended_simulated_prices[[i, j]] + trend + stochastic_trend[[i, j]];
         }
     }
 
-    // Convert log prices to actual prices
     let simulated_prices = simulated_log_prices.mapv(f64::exp);
-
-    // Calculate TWAP
     let twap_start = n_periods.saturating_sub(24 * 7);
     let final_prices_twap = simulated_prices
         .slice(s![twap_start.., ..])
@@ -211,7 +159,6 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 
     let payoffs = final_prices_twap.mapv(|price| {
         let capped_price = (1.0 + cap_level) * strike;
-
         (price.min(capped_price) - strike).max(0.0)
     });
 

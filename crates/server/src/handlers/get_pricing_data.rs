@@ -12,9 +12,9 @@ use db_access::{
     },
     DbConnection,
 };
+use serde_json::json;
 use starknet_crypto::{poseidon_hash_single, Felt};
 use tokio::join;
-use serde_json::json;
 
 use crate::types::{JobResponse, PitchLakeJobRequest};
 use crate::{
@@ -31,8 +31,6 @@ pub async fn get_pricing_data(
     State(state): State<AppState>,
     Json(payload): Json<PitchLakeJobRequest>,
 ) -> (StatusCode, Json<JobResponse>) {
-    tracing::debug!("Received payload: {:?}", payload);
-
     if payload.identifiers.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -45,7 +43,6 @@ pub async fn get_pricing_data(
     }
 
     if let Err((status, response)) = validate_time_ranges(&payload.params) {
-        tracing::error!("Invalid time ranges: {:?}", payload.params);
         return (status, Json(response));
     }
 
@@ -58,24 +55,24 @@ pub async fn get_pricing_data(
 
     match get_job_request(&state.db.pool, &job_id).await {
         Ok(Some(job_request)) => match job_request.status {
-            JobStatus::Pending => {
-                let response = JobResponse {
+            JobStatus::Pending => (
+                StatusCode::CONFLICT,
+                Json(JobResponse {
                     job_id: job_id.clone(),
                     message: "Job is already pending. Use the status endpoint to monitor progress."
                         .to_string(),
                     status_url: format!("{}/job_status/{}", base_url, job_id),
-                };
-                (StatusCode::CONFLICT, Json(response))
-            }
-            JobStatus::Completed => {
-                let response = JobResponse {
+                }),
+            ),
+            JobStatus::Completed => (
+                StatusCode::OK,
+                Json(JobResponse {
                     job_id: job_id.clone(),
                     message: "Job completed. Fetch the results from the status endpoint."
                         .to_string(),
                     status_url: format!("{}/job_status/{}", base_url, job_id),
-                };
-                (StatusCode::OK, Json(response))
-            }
+                }),
+            ),
             JobStatus::Failed => {
                 if let Err(e) =
                     update_job_status(&state.db.pool, &job_id, JobStatus::Pending, None).await
@@ -95,7 +92,7 @@ pub async fn get_pricing_data(
                     Json(JobResponse {
                         job_id: job_id.clone(),
                         message: "Reprocessing initiated.".to_string(),
-                        status_url: format!("{}/job_status/{}", base_url, job_id.clone()),
+                        status_url: format!("{}/job_status/{}", base_url, job_id),
                     }),
                 )
             }
@@ -112,29 +109,23 @@ pub async fn get_pricing_data(
                     }),
                 )
             }
-            Err(e) => {
-                tracing::error!("Failed to create job: {:?}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(JobResponse {
-                        job_id: job_id.clone(),
-                        message: format!("Error creating job: {}", e),
-                        status_url: format!("{}/job_status/{}", base_url, job_id.clone()),
-                    }),
-                )
-            }
-        },
-        Err(e) => {
-            tracing::error!("Error retrieving job: {:?}", e);
-            (
+            Err(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(JobResponse {
                     job_id: job_id.clone(),
-                    message: format!("Error retrieving job: {}", e),
-                    status_url: format!("{}/job_status/{}", base_url, job_id.clone()),
+                    message: format!("Error creating job: {}", e),
+                    status_url: format!("{}/job_status/{}", base_url, job_id),
                 }),
-            )
-        }
+            ),
+        },
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(JobResponse {
+                job_id: job_id.clone(),
+                message: format!("Error retrieving job: {}", e),
+                status_url: format!("{}/job_status/{}", base_url, job_id),
+            }),
+        ),
     }
 }
 
@@ -156,7 +147,6 @@ async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJo
     let (twap_headers, volatility_headers, reserve_price_headers) = match block_headers {
         (Ok(twap), Ok(volatility), Ok(reserve_price)) => (twap, volatility, reserve_price),
         _ => {
-            tracing::error!("Error fetching block headers.");
             let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
             return;
         }
@@ -179,12 +169,10 @@ async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJo
             if let Err(e) =
                 update_job_status(&db.pool, &job_id, JobStatus::Completed, Some(result)).await
             {
-                tracing::error!("Error updating job status: {}", e);
+                tracing::error!("Failed to update job status: {}", e);
             }
-            tracing::info!("Job {} completed successfully.", job_id);
         }
         _ => {
-            tracing::error!("Job {} failed.", job_id);
             let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
         }
     }
@@ -239,10 +227,7 @@ mod tests {
 
         assert_eq!(status, StatusCode::CREATED);
         assert!(!response.job_id.is_empty());
-        assert_eq!(
-            response.message,
-            "Processing initiated."
-        );
+        assert_eq!(response.message, "Processing initiated.");
         assert_eq!(
             response.status_url,
             format!("http://localhost:3000/job_status/{}", response.job_id)
@@ -333,10 +318,7 @@ mod tests {
 
         assert_eq!(status, StatusCode::OK);
         assert_eq!(response.job_id, job_id);
-        assert_eq!(
-            response.message,
-            "Reprocessing initiated."
-        );
+        assert_eq!(response.message, "Reprocessing initiated.");
         assert_eq!(
             response.status_url,
             format!("http://localhost:3000/job_status/{}", job_id)
@@ -364,10 +346,7 @@ mod tests {
 
         assert_eq!(status, StatusCode::CREATED);
         assert!(!response.job_id.is_empty());
-        assert_eq!(
-            response.message,
-            "Processing initiated."
-        );
+        assert_eq!(response.message, "Processing initiated.");
         assert_eq!(
             response.status_url,
             format!("http://localhost:3000/job_status/{}", response.job_id)

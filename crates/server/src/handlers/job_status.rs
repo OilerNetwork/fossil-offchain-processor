@@ -35,11 +35,10 @@ pub async fn get_job_status(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::handlers::fixtures::TestContext;
     use super::*;
+    use crate::handlers::fixtures::TestContext;
     use axum::http::StatusCode;
     use db_access::models::JobStatus;
     use serde_json::json;
@@ -67,7 +66,10 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(response["job_id"], job_id);
         assert_eq!(response["status"], "Pending");
-        assert!(response["result"].is_null(), "Result should be null for pending jobs");
+        assert!(
+            response["result"].is_null(),
+            "Result should be null for pending jobs"
+        );
     }
 
     #[tokio::test]
@@ -82,7 +84,10 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(response["job_id"], job_id);
         assert_eq!(response["status"], "Failed");
-        assert!(response["result"].is_null(), "Result should be null for failed jobs");
+        assert!(
+            response["result"].is_null(),
+            "Result should be null for failed jobs"
+        );
     }
 
     #[tokio::test]
@@ -105,6 +110,9 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(response["job_id"], job_id);
         assert_eq!(response["status"], "Completed");
-        assert_eq!(response["result"], sample_result, "Result does not match expected value");
+        assert_eq!(
+            response["result"], sample_result,
+            "Result does not match expected value"
+        );
     }
 }
