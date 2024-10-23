@@ -9,7 +9,7 @@ use db_access::{
     DbConnection,
 };
 use starknet_crypto::{poseidon_hash_single, Felt};
-use tokio::{join, time::Instant};
+use tokio::{join, runtime::Handle, time::Instant};
 
 use crate::types::{JobResponse, PitchLakeJobRequest};
 use crate::{
@@ -80,7 +80,14 @@ pub async fn get_pricing_data(
                         status: Some(JobStatus::Failed)
                     }));
                 }
-                tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
+
+                let db_clone = state.db.clone();
+                let job_id_clone = job_id.clone();
+                let handle = Handle::current();
+
+                tokio::task::spawn_blocking(move || {
+                    handle.block_on(process_job(db_clone, job_id_clone, payload));
+                });
 
                 (
                     StatusCode::OK,
@@ -98,7 +105,13 @@ pub async fn get_pricing_data(
             // New job
             match create_job_request(&state.db.pool, &job_id, JobStatus::Pending).await {
                 Ok(_) => {
-                    tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
+                    let db_clone = state.db.clone();
+                    let job_id_clone = job_id.clone();
+                    let handle = Handle::current();
+
+                    tokio::task::spawn_blocking(move || {
+                        handle.block_on(process_job(db_clone, job_id_clone, payload));
+                    });
 
                     (
                         StatusCode::CREATED,
