@@ -84,4 +84,24 @@ impl TestContext {
     ) -> (StatusCode, Json<JobResponse>) {
         get_pricing_data(State(self.app_state.clone()), Json(payload)).await
     }
+
+    pub async fn create_job_with_result(
+        &self,
+        job_id: &str,
+        status: JobStatus,
+        result: serde_json::Value,
+    ) {
+        sqlx::query!(
+            r#"
+            INSERT INTO job_requests (job_id, status, result)
+            VALUES ($1, $2, $3::jsonb)
+            "#,
+            job_id,
+            status.to_string(),
+            result
+        )
+        .execute(&self.db_pool)
+        .await
+        .expect("Failed to create job request with result");
+    }
 }
