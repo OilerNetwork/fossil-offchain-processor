@@ -1,9 +1,7 @@
 use crate::models::ApiKey;
 use sqlx::PgPool;
 
-pub async fn add_api_key(
-    pool: &PgPool, api_key: String, name: String
-) -> Result<(), sqlx::Error> {
+pub async fn add_api_key(pool: &PgPool, api_key: String, name: String) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "INSERT INTO api_keys (key, name, created_at) VALUES ($1, $2, now())",
         api_key,
@@ -13,7 +11,6 @@ pub async fn add_api_key(
     .await?;
     Ok(())
 }
-
 
 pub async fn find_api_key(pool: &PgPool, key: String) -> Result<ApiKey, sqlx::Error> {
     tracing::debug!("Searching for API key: {}", key);

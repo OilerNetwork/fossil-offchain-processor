@@ -79,6 +79,7 @@ pub struct JobRequest {
     pub job_id: String,
     pub status: JobStatus,
     pub created_at: chrono::NaiveDateTime,
+    pub result: Option<serde_json::Value>,
 }
 
 #[derive(Debug, sqlx::FromRow)]

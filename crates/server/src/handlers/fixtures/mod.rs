@@ -24,6 +24,7 @@ pub struct TestContext {
 }
 
 impl TestContext {
+    /// Creates a new test context with a PostgreSQL container and initializes the required tables.
     pub async fn new() -> Self {
         let container = DOCKER.run(PostgresImage::default());
         let port = container.get_host_port_ipv4(5432);
@@ -35,13 +36,16 @@ impl TestContext {
             .await
             .expect("Failed to create database pool");
 
-        // Create necessary tables
+        // Create the `job_requests` table with the dynamic JSONB result column.
         sqlx::query(
-            "CREATE TABLE IF NOT EXISTS job_requests (
+            r#"
+            CREATE TABLE IF NOT EXISTS job_requests (
                 job_id TEXT PRIMARY KEY,
-                status TEXT NOT NULL,
+                status TEXT NOT NULL CHECK (status IN ('Completed', 'Pending', 'Failed')),
+                result JSONB, -- Stores dynamic JSON responses
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )",
+            )
+            "#,
         )
         .execute(&pool)
         .await
@@ -57,12 +61,14 @@ impl TestContext {
         }
     }
 
+    /// Creates a new job request with a given status.
     pub async fn create_job(&self, job_id: &str, status: JobStatus) {
         create_job_request(&self.db_pool, job_id, status)
             .await
             .expect("Failed to create job request");
     }
 
+    /// Retrieves the job status using the `/job_status` endpoint.
     pub async fn get_job_status(&self, job_id: &str) -> (StatusCode, Json<serde_json::Value>) {
         get_job_status(
             State(self.app_state.clone()),
@@ -71,6 +77,7 @@ impl TestContext {
         .await
     }
 
+    /// Sends a pricing data request and returns the status and response.
     pub async fn get_pricing_data(
         &self,
         payload: PitchLakeJobRequest,

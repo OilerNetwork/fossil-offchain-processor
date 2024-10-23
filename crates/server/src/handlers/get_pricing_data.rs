@@ -13,7 +13,8 @@ use db_access::{
     DbConnection,
 };
 use starknet_crypto::{poseidon_hash_single, Felt};
-use tokio::{join, time::Instant};
+use tokio::join;
+use serde_json::json;
 
 use crate::types::{JobResponse, PitchLakeJobRequest};
 use crate::{
@@ -43,8 +44,6 @@ pub async fn get_pricing_data(
         );
     }
 
-    tracing::debug!("Received payload: {:?}", payload);
-
     if let Err((status, response)) = validate_time_ranges(&payload.params) {
         tracing::error!("Invalid time ranges: {:?}", payload.params);
         return (status, Json(response));
@@ -55,7 +54,6 @@ pub async fn get_pricing_data(
     ))
     .to_string();
 
-    // Default to localhost:3000 if we can't get the host from headers
     let base_url = "http://localhost:3000".to_string();
 
     match get_job_request(&state.db.pool, &job_id).await {
@@ -67,79 +65,73 @@ pub async fn get_pricing_data(
                         .to_string(),
                     status_url: format!("{}/job_status/{}", base_url, job_id),
                 };
-                tracing::debug!("Sending pending response: {:?}", response);
                 (StatusCode::CONFLICT, Json(response))
             }
             JobStatus::Completed => {
                 let response = JobResponse {
                     job_id: job_id.clone(),
-                    message: "Job has already been completed. You can fetch the results using the status URL."
+                    message: "Job completed. Fetch the results from the status endpoint."
                         .to_string(),
                     status_url: format!("{}/job_status/{}", base_url, job_id),
                 };
-                tracing::debug!("Sending completed response: {:?}", response);
                 (StatusCode::OK, Json(response))
             }
             JobStatus::Failed => {
-                // Reprocess the failed job
-                if let Err(e) = update_job_status(&state.db.pool, &job_id, JobStatus::Pending).await
+                if let Err(e) =
+                    update_job_status(&state.db.pool, &job_id, JobStatus::Pending, None).await
                 {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, Json(JobResponse {
-                        job_id: job_id.clone(),
-                        message: format!("Previous job request failed. An error occurred while updating job status: {}", e).to_string(),
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(JobResponse {
+                            job_id: job_id.clone(),
+                            message: format!("Failed to update job status: {}", e),
                             status_url: format!("{}/job_status/{}", base_url, job_id),
                         }),
                     );
                 }
                 tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
-
                 (
                     StatusCode::OK,
                     Json(JobResponse {
                         job_id: job_id.clone(),
-                        message: "Previous job request failed. Reprocessing initiated.".to_string(),
-                        status_url: format!("{}/job_status/{}", base_url, job_id),
+                        message: "Reprocessing initiated.".to_string(),
+                        status_url: format!("{}/job_status/{}", base_url, job_id.clone()),
                     }),
                 )
             }
         },
-        Ok(None) => {
-            // New job
-            match create_job_request(&state.db.pool, &job_id, JobStatus::Pending).await {
-                Ok(_) => {
-                    tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
-
-                    (
-                        StatusCode::CREATED,
-                        Json(JobResponse {
-                            job_id: job_id.clone(),
-                            message: "New job request registered and processing initiated."
-                                .to_string(),
-                            status_url: format!("/job_status/{}", job_id),
-                        }),
-                    )
-                }
-                Err(e) => {
-                    tracing::error!("Failed to create job request: {:?}", e);
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(JobResponse {
-                            job_id: job_id.clone(),
-                            message: format!("An error occurred while creating the job: {}", e),
-                            status_url: format!("/job_status/{}", job_id),
-                        }),
-                    )
-                }
+        Ok(None) => match create_job_request(&state.db.pool, &job_id, JobStatus::Pending).await {
+            Ok(_) => {
+                tokio::spawn(process_job(state.db.clone(), job_id.clone(), payload));
+                (
+                    StatusCode::CREATED,
+                    Json(JobResponse {
+                        job_id: job_id.clone(),
+                        message: "Processing initiated.".to_string(),
+                        status_url: format!("{}/job_status/{}", base_url, job_id),
+                    }),
+                )
             }
-        }
+            Err(e) => {
+                tracing::error!("Failed to create job: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(JobResponse {
+                        job_id: job_id.clone(),
+                        message: format!("Error creating job: {}", e),
+                        status_url: format!("{}/job_status/{}", base_url, job_id.clone()),
+                    }),
+                )
+            }
+        },
         Err(e) => {
-            tracing::error!("Failed to get job request: {:?}", e);
+            tracing::error!("Error retrieving job: {:?}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(JobResponse {
                     job_id: job_id.clone(),
-                    message: format!("An error occurred while processing the request: {}", e),
-                    status_url: format!("/job_status/{}", job_id),
+                    message: format!("Error retrieving job: {}", e),
+                    status_url: format!("{}/job_status/{}", base_url, job_id.clone()),
                 }),
             )
         }
@@ -147,9 +139,7 @@ pub async fn get_pricing_data(
 }
 
 async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJobRequest) {
-    tracing::info!("Fetching block headers for job_id: {}", job_id);
-
-    let block_headers_for_calculations = join!(
+    let block_headers = join!(
         get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),
         get_block_headers_by_time_range(
             &db.pool,
@@ -163,79 +153,39 @@ async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJo
         )
     );
 
-    let (twap_blockheaders, volatility_blockheaders, reserve_price_blockheaders) =
-        match block_headers_for_calculations {
-            (
-                Ok(twap_blockheaders),
-                Ok(volatility_blockheaders),
-                Ok(reserve_price_blockheaders),
-            ) => {
-                tracing::info!(
-                    "Fetched {} TWAP headers, {} Volatility headers, {} Reserve Price headers",
-                    twap_blockheaders.len(),
-                    volatility_blockheaders.len(),
-                    reserve_price_blockheaders.len()
-                );
-                (
-                    twap_blockheaders,
-                    volatility_blockheaders,
-                    reserve_price_blockheaders,
-                )
-            }
-            _ => {
-                tracing::error!(
-                    "Failed to query db data: {:?}",
-                    block_headers_for_calculations
-                );
-                let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed).await;
-                return;
-            }
-        };
-
-    tracing::info!("Starting TWAP calculation...");
-    let twap_future = calculate_twap(twap_blockheaders);
-
-    tracing::info!("Starting Volatility calculation...");
-    let volatility_future = calculate_volatility(volatility_blockheaders);
-
-    tracing::info!("Starting Reserve Price calculation...");
-    let reserve_price_future = calculate_reserve_price(reserve_price_blockheaders);
-
-    let now = Instant::now();
-    tracing::info!("Started processing...");
-
-    let futures_result = join!(twap_future, volatility_future, reserve_price_future);
-
-    let elapsed = now.elapsed();
-    tracing::info!("Elapsed: {:.2?}", elapsed);
-
-    match futures_result {
-        (Ok(twap), Ok(volatility_result), Ok(reserve_price_result)) => {
-            tracing::debug!("TWAP result: {:?}", twap);
-            tracing::debug!("Volatility result: {:?}", volatility_result);
-            tracing::debug!("Reserve Price result: {:?}", reserve_price_result);
-            if let Err(e) = update_job_status(&db.pool, &job_id, JobStatus::Completed).await {
-                tracing::error!("Failed to update job status: {}", e);
-            }
-            tracing::info!("Sending success callback for job_id: {}", job_id);
+    let (twap_headers, volatility_headers, reserve_price_headers) = match block_headers {
+        (Ok(twap), Ok(volatility), Ok(reserve_price)) => (twap, volatility, reserve_price),
+        _ => {
+            tracing::error!("Error fetching block headers.");
+            let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
+            return;
         }
-        (twap_result, volatility_result, reserve_price_result) => {
-            // Identify which future failed and log errors in detail.
-            if let Err(e) = &twap_result {
-                tracing::error!("TWAP calculation failed: {:?}", e);
-            }
-            if let Err(e) = &volatility_result {
-                tracing::error!("Volatility calculation failed: {:?}", e);
-            }
-            if let Err(e) = &reserve_price_result {
-                tracing::error!("Reserve Price calculation failed: {:?}", e);
-            }
-            tracing::error!("At least one calculation failed.");
+    };
 
-            if let Err(e) = update_job_status(&db.pool, &job_id, JobStatus::Failed).await {
-                tracing::error!("Failed to update job status: {}", e);
+    let results = join!(
+        calculate_twap(twap_headers),
+        calculate_volatility(volatility_headers),
+        calculate_reserve_price(reserve_price_headers)
+    );
+
+    match results {
+        (Ok(twap), Ok(volatility), Ok(reserve_price)) => {
+            let result = json!({
+                "twap": twap,
+                "volatility": volatility,
+                "reserve_price": reserve_price,
+            });
+
+            if let Err(e) =
+                update_job_status(&db.pool, &job_id, JobStatus::Completed, Some(result)).await
+            {
+                tracing::error!("Error updating job status: {}", e);
             }
-            tracing::error!("Sending failure callback for job_id: {}", job_id);
+            tracing::info!("Job {} completed successfully.", job_id);
+        }
+        _ => {
+            tracing::error!("Job {} failed.", job_id);
+            let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
         }
     }
 }
@@ -291,9 +241,12 @@ mod tests {
         assert!(!response.job_id.is_empty());
         assert_eq!(
             response.message,
-            "New job request registered and processing initiated."
+            "Processing initiated."
         );
-        assert!(response.status_url.starts_with("/job_status/"));
+        assert_eq!(
+            response.status_url,
+            format!("http://localhost:3000/job_status/{}", response.job_id)
+        );
     }
 
     #[tokio::test]
@@ -350,7 +303,7 @@ mod tests {
         assert_eq!(response.job_id, job_id);
         assert_eq!(
             response.message,
-            "Job has already been completed. You can fetch the results using the status URL."
+            "Job completed. Fetch the results from the status endpoint."
         );
         // TODO: Temporary fix for the test
         assert_eq!(
@@ -382,7 +335,7 @@ mod tests {
         assert_eq!(response.job_id, job_id);
         assert_eq!(
             response.message,
-            "Previous job request failed. Reprocessing initiated."
+            "Reprocessing initiated."
         );
         assert_eq!(
             response.status_url,
@@ -413,9 +366,12 @@ mod tests {
         assert!(!response.job_id.is_empty());
         assert_eq!(
             response.message,
-            "New job request registered and processing initiated."
+            "Processing initiated."
         );
-        assert!(response.status_url.starts_with("/job_status/"));
+        assert_eq!(
+            response.status_url,
+            format!("http://localhost:3000/job_status/{}", response.job_id)
+        );
 
         // Verify that the job_id is a hash of all identifiers
         let expected_job_id =

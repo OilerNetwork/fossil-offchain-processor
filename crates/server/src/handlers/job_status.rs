@@ -37,6 +37,7 @@ pub async fn get_job_status(
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use crate::handlers::fixtures::TestContext;
