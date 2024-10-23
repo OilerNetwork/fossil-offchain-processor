@@ -1,13 +1,10 @@
-use eyre::{anyhow, Result};
+use eyre::Result;
 
 pub fn hex_string_to_f64(hex_str: &String) -> Result<f64> {
-    // Remove the "0x" prefix if it exists
     let stripped = hex_str.trim_start_matches("0x");
-
-    // Convert hex string to u128, return error if it fails
     u128::from_str_radix(stripped, 16)
         .map(|value| value as f64)
-        .map_err(|e| anyhow!("Error converting hex string '{}' to f64: {}", hex_str, e))
+        .map_err(|e| eyre::eyre!("Error converting hex string '{}' to f64: {}", hex_str, e))
 }
 
 #[cfg(test)]
@@ -36,10 +33,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_hex_string_to_f64_invalid_value() {
         let result = hex_string_to_f64(&"shouldpanic".to_string());
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "Expected an error, but got {:?}", result);
     }
 }

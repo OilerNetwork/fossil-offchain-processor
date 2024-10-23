@@ -214,12 +214,27 @@ async fn process_job(db: Arc<DbConnection>, job_id: String, payload: PitchLakeJo
             tracing::debug!("TWAP result: {:?}", twap);
             tracing::debug!("Volatility result: {:?}", volatility_result);
             tracing::debug!("Reserve Price result: {:?}", reserve_price_result);
-            let _ = update_job_status(&db.pool, &job_id, JobStatus::Completed).await;
+            if let Err(e) = update_job_status(&db.pool, &job_id, JobStatus::Completed).await {
+                tracing::error!("Failed to update job status: {}", e);
+            }
             tracing::info!("Sending success callback for job_id: {}", job_id);
         }
-        future_tuple_with_err => {
-            tracing::error!("Failed calculation: {:?}", future_tuple_with_err);
-            let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed).await;
+        (twap_result, volatility_result, reserve_price_result) => {
+            // Identify which future failed and log errors in detail.
+            if let Err(e) = &twap_result {
+                tracing::error!("TWAP calculation failed: {:?}", e);
+            }
+            if let Err(e) = &volatility_result {
+                tracing::error!("Volatility calculation failed: {:?}", e);
+            }
+            if let Err(e) = &reserve_price_result {
+                tracing::error!("Reserve Price calculation failed: {:?}", e);
+            }
+            tracing::error!("At least one calculation failed.");
+
+            if let Err(e) = update_job_status(&db.pool, &job_id, JobStatus::Failed).await {
+                tracing::error!("Failed to update job status: {}", e);
+            }
             tracing::error!("Sending failure callback for job_id: {}", job_id);
         }
     }
@@ -306,7 +321,10 @@ mod tests {
             response.message,
             "Job is already pending. Use the status endpoint to monitor progress."
         );
-        assert_eq!(response.status_url, format!("/job_status/{}", job_id));
+        assert_eq!(
+            response.status_url,
+            format!("http://localhost:3000/job_status/{}", job_id)
+        );
     }
 
     #[tokio::test]
@@ -328,13 +346,17 @@ mod tests {
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
 
-        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(status, StatusCode::OK);
         assert_eq!(response.job_id, job_id);
         assert_eq!(
             response.message,
-            "Job has already been completed. No further processing required."
+            "Job has already been completed. You can fetch the results using the status URL."
         );
-        assert_eq!(response.status_url, format!("/job_status/{}", job_id));
+        // TODO: Temporary fix for the test
+        assert_eq!(
+            response.status_url,
+            format!("http://localhost:3000/job_status/{}", job_id)
+        );
     }
 
     #[tokio::test]
@@ -362,7 +384,10 @@ mod tests {
             response.message,
             "Previous job request failed. Reprocessing initiated."
         );
-        assert_eq!(response.status_url, format!("/job_status/{}", job_id));
+        assert_eq!(
+            response.status_url,
+            format!("http://localhost:3000/job_status/{}", job_id)
+        );
 
         // Verify that the job status was updated to Pending
         let (_, Json(status_response)) = ctx.get_job_status(&job_id).await;

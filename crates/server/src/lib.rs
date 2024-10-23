@@ -48,4 +48,3 @@ pub async fn create_app(pool: PgPool) -> Router {
         .layer(CorsLayer::permissive())
         .with_state(app_state)
 }
-
