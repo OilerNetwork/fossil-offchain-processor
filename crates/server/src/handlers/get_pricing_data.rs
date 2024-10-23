@@ -151,7 +151,11 @@ async fn reprocess_failed_job(
         payload,
         starknet_account,
     ));
-    job_response(StatusCode::OK, job_id, "Previous job request failed. Reprocessing initiated.")
+    job_response(
+        StatusCode::OK,
+        job_id,
+        "Previous job request failed. Reprocessing initiated.",
+    )
 }
 
 // Helper to generate a JSON response
@@ -460,4 +464,3 @@ mod tests {
         );
     }
 }
-
