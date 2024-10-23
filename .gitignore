@@ -6,6 +6,3 @@ target/
 data.csv
 crates/mmr-accumulator/db-instances/
 zkvm/.bonsai-env
-/.sqlx/
-
-zkvm/.bonsay-env
