@@ -1,4 +1,4 @@
-use crate::{types::AuthErrorResponse, AppState};
+use crate::{types::ErrorResponse, AppState};
 use axum::{
     extract::State,
     http::{HeaderMap, Request, StatusCode},
@@ -16,7 +16,7 @@ pub async fn simple_apikey_auth(
     request: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let response_data = AuthErrorResponse {
+    let response_data = ErrorResponse {
         error: "Unauthenticated".to_string(),
     };
 
