@@ -191,8 +191,16 @@ async fn process_job(
     payload: PitchLakeJobRequest,
     starknet_account: FossilStarknetAccount,
 ) {
+    tracing::info!("Starting job {} processing.", job_id);
+    tracing::debug!("Payload received: {:?}", payload);
+
     match fetch_headers(&db, &payload).await {
         Some((twap, volatility, reserve_price)) => {
+            tracing::info!(
+                "Fetched block headers for job {}. Calculated values: TWAP = {}, Volatility = {}, Reserve Price = {}",
+                job_id, twap, volatility, reserve_price
+            );
+
             let result = PitchLakeResult {
                 twap: U256::from(twap as u128),
                 volatility: volatility as u128,
@@ -215,20 +223,42 @@ async fn process_job(
                 return;
             }
 
-            if let Err(e) = starknet_account
-                .callback_to_contract(
-                    payload.client_info.client_address,
-                    &JobRequest {
-                        vault_address: payload.client_info.vault_address,
-                        timestamp: payload.client_info.timestamp,
-                        program_id: Felt::from_hex(PITCH_LAKE_V1).unwrap(),
-                    },
-                    &result,
-                )
+            tracing::info!(
+                "Job {} completed. Initiating Starknet callback to contract at address: {}",
+                job_id, payload.client_info.client_address
+            );
+
+            let job_request = JobRequest {
+                vault_address: payload.client_info.vault_address,
+                timestamp: payload.client_info.timestamp,
+                program_id: Felt::from_hex(PITCH_LAKE_V1).unwrap(),
+            };
+
+            tracing::debug!(
+                "Starknet callback calldata: Client Address = {:?}, Vault Address = {:?}, Timestamp = {}, Program ID = {}",
+                job_request.vault_address, 
+                payload.client_info.vault_address, 
+                job_request.timestamp, 
+                PITCH_LAKE_V1
+            );
+
+            match starknet_account
+                .callback_to_contract(payload.client_info.client_address, &job_request, &result)
                 .await
             {
-                tracing::error!("Starknet callback failed: {:?}", e);
-                let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
+                Ok(tx_hash) => {
+                    tracing::info!(
+                        "Starknet callback successful for job {}. Transaction hash: {}",
+                        job_id, tx_hash
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Starknet callback failed for job {}. Error: {:?}",
+                        job_id, e
+                    );
+                    let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
+                }
             }
         }
         None => {
@@ -239,6 +269,7 @@ async fn process_job(
 
     tracing::info!("Job {} processing finished.", job_id);
 }
+
 
 // Helper to fetch block headers in parallel
 async fn fetch_headers(
