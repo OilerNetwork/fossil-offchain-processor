@@ -31,6 +31,16 @@ pub struct JobResponse {
     pub status: Option<JobStatus>,
 }
 
+impl JobResponse {
+    pub fn new(job_id: String, message: Option<String>, status: Option<JobStatus>) -> Self {
+        Self {
+            job_id,
+            message,
+            status,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: String,

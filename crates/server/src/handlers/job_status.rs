@@ -1,6 +1,6 @@
 use crate::types::{ErrorResponse, GetJobStatusResponseEnum, JobResponse};
 use crate::AppState;
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
 use db_access::queries::get_job_request;
@@ -41,8 +41,8 @@ pub async fn get_job_status(
 mod tests {
     use core::panic;
 
-    use crate::handlers::fixtures::TestContext;
-    use axum::http::StatusCode;
+    use crate::{handlers::fixtures::TestContext, types::GetJobStatusResponseEnum};
+    use axum::{http::StatusCode, Json};
     use db_access::models::JobStatus;
     use serde_json::json;
 
@@ -54,7 +54,7 @@ mod tests {
         let (status, Json(response)) = ctx.get_job_status(job_id).await;
 
         let response = match response {
-            GetJobStatusResponseEnum::Error(err_response) => err_response,
+            crate::types::GetJobStatusResponseEnum::Error(err_response) => err_response,
             GetJobStatusResponseEnum::Success(_) => panic!("Unexpected response status"),
         };
 

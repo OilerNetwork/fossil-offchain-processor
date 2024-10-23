@@ -1,5 +1,6 @@
 use std::env;
 
+use dotenv::dotenv;
 use eyre::Result;
 use starknet::{
     accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
@@ -8,7 +9,6 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use starknet_crypto::Felt;
-use dotenv::dotenv;
 
 pub const PITCH_LAKE_V1: &str = "0x50495443485f4c414b455f5631";
 
