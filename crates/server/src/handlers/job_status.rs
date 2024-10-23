@@ -18,7 +18,7 @@ pub async fn get_job_status(
                 "job_id": job.job_id,
                 "status": job.status.to_string(),
                 "created_at": job.created_at.and_utc(), // Ensure correct timezone
-                "result": job.result.unwrap_or_else(|| json!(null)), // Handle optional result
+                "result": job.result.unwrap_or(json!(null)), // Handle optional result
             })),
         ),
         Ok(None) => (
