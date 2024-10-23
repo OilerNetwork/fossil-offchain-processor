@@ -39,7 +39,7 @@ pub async fn get_pricing_data(
     }
 
     let starknet_account = FossilStarknetAccount::new();
-    let job_id = generate_job_id(&payload.identifiers);
+    let job_id = generate_job_id(&payload.identifiers, &payload.params);
 
     tracing::info!("Generated job_id: {}", job_id);
 
@@ -82,8 +82,19 @@ fn validate_request(payload: &PitchLakeJobRequest) -> Result<(), (StatusCode, Jo
 }
 
 // Helper to generate a job ID
-fn generate_job_id(identifiers: &[String]) -> String {
-    poseidon_hash_single(Felt::from_bytes_be_slice(identifiers.join("").as_bytes())).to_string()
+fn generate_job_id(identifiers: &[String], params: &PitchLakeJobRequestParams) -> String {
+    let mut input = identifiers.join("");
+
+    // Concatenate all time ranges as part of the job ID generation
+    input.push_str(&format!(
+        "{}{}{}{}{}{}",
+        params.twap.0, params.twap.1,
+        params.volatility.0, params.volatility.1,
+        params.reserve_price.0, params.reserve_price.1
+    ));
+
+    // Hash the concatenated string using Poseidon
+    poseidon_hash_single(Felt::from_bytes_be_slice(input.as_bytes())).to_string()
 }
 
 // Handle existing jobs based on status
