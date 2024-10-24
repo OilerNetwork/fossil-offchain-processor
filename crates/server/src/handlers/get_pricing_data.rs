@@ -88,9 +88,12 @@ fn generate_job_id(identifiers: &[String], params: &PitchLakeJobRequestParams) -
     // Concatenate all time ranges as part of the job ID generation
     input.push_str(&format!(
         "{}{}{}{}{}{}",
-        params.twap.0, params.twap.1,
-        params.volatility.0, params.volatility.1,
-        params.reserve_price.0, params.reserve_price.1
+        params.twap.0,
+        params.twap.1,
+        params.volatility.0,
+        params.volatility.1,
+        params.reserve_price.0,
+        params.reserve_price.1
     ));
 
     // Hash the concatenated string using Poseidon
@@ -236,7 +239,8 @@ async fn process_job(
 
             tracing::info!(
                 "Job {} completed. Initiating Starknet callback to contract at address: {}",
-                job_id, payload.client_info.client_address
+                job_id,
+                payload.client_info.client_address
             );
 
             let job_request = JobRequest {
@@ -247,9 +251,9 @@ async fn process_job(
 
             tracing::debug!(
                 "Starknet callback calldata: Client Address = {:?}, Vault Address = {:?}, Timestamp = {}, Program ID = {}",
-                job_request.vault_address, 
-                payload.client_info.vault_address, 
-                job_request.timestamp, 
+                job_request.vault_address,
+                payload.client_info.vault_address,
+                job_request.timestamp,
                 PITCH_LAKE_V1
             );
 
@@ -260,13 +264,15 @@ async fn process_job(
                 Ok(tx_hash) => {
                     tracing::info!(
                         "Starknet callback successful for job {}. Transaction hash: {}",
-                        job_id, tx_hash
+                        job_id,
+                        tx_hash
                     );
                 }
                 Err(e) => {
                     tracing::error!(
                         "Starknet callback failed for job {}. Error: {:?}",
-                        job_id, e
+                        job_id,
+                        e
                     );
                     let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
                 }
@@ -280,7 +286,6 @@ async fn process_job(
 
     tracing::info!("Job {} processing finished.", job_id);
 }
-
 
 // Helper to fetch block headers in parallel
 async fn fetch_headers(
