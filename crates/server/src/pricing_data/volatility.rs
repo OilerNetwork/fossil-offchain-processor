@@ -12,8 +12,8 @@ pub async fn calculate_volatility(blocks: Vec<BlockHeader>) -> Result<f64> {
             (&blocks[i].base_fee_per_gas, &blocks[i - 1].base_fee_per_gas)
         {
             // Convert base fees from hex string to f64
-            let basefee_current = hex_string_to_f64(basefee_current);
-            let basefee_previous = hex_string_to_f64(basefee_previous);
+            let basefee_current = hex_string_to_f64(basefee_current)?;
+            let basefee_previous = hex_string_to_f64(basefee_previous)?;
 
             // If the previous base fee is zero, skip to the next iteration
             if basefee_previous == 0.0 {

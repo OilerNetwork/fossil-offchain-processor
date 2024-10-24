@@ -41,11 +41,10 @@ pub async fn get_job_status(
 mod tests {
     use core::panic;
 
-    use crate::handlers::fixtures::TestContext;
-
-    use super::*;
-    use axum::http::StatusCode;
+    use crate::{handlers::fixtures::TestContext, types::GetJobStatusResponseEnum};
+    use axum::{http::StatusCode, Json};
     use db_access::models::JobStatus;
+    use serde_json::json;
 
     #[tokio::test]
     async fn test_get_job_status_not_found() {
@@ -55,7 +54,7 @@ mod tests {
         let (status, Json(response)) = ctx.get_job_status(job_id).await;
 
         let response = match response {
-            GetJobStatusResponseEnum::Error(err_response) => err_response,
+            crate::types::GetJobStatusResponseEnum::Error(err_response) => err_response,
             GetJobStatusResponseEnum::Success(_) => panic!("Unexpected response status"),
         };
 
@@ -106,7 +105,15 @@ mod tests {
         let ctx = TestContext::new().await;
         let job_id = "completed_job_id";
 
-        ctx.create_job(job_id, JobStatus::Completed).await;
+        // Create a completed job with a sample result
+        let sample_result = json!({
+            "twap": 12345.67,
+            "volatility": 2345.89,
+            "reserve_price": 3456.78
+        });
+
+        ctx.create_job_with_result(job_id, JobStatus::Completed, sample_result.clone())
+            .await;
 
         let (status, Json(response)) = ctx.get_job_status(job_id).await;
 
