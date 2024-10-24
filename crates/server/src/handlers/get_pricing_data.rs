@@ -6,7 +6,7 @@ use axum::{
 };
 use starknet_crypto::{poseidon_hash_single, Felt};
 use starknet_handler::{FossilStarknetAccount, JobRequest, PitchLakeResult, PITCH_LAKE_V1};
-use tokio::{join, task};
+use tokio::{join, runtime::Handle, time::Instant};
 
 use crate::types::{JobResponse, PitchLakeJobRequest};
 use crate::AppState;
@@ -40,7 +40,6 @@ pub async fn get_pricing_data(
 
     let starknet_account = FossilStarknetAccount::new();
     let job_id = generate_job_id(&payload.identifiers, &payload.params);
-    println!("job_id: {}", job_id);
 
     tracing::info!("Generated job_id: {}", job_id);
 
@@ -130,16 +129,28 @@ async fn handle_new_job_request(
     match create_job_request(&state.db.pool, &job_id, JobStatus::Pending).await {
         Ok(_) => {
             tracing::info!("New job request registered and processing initiated.");
-            task::spawn(process_job(
-                state.db.clone(),
-                job_id.clone(),
-                payload,
-                starknet_account,
-            ));
-            job_response(
+            let db_clone = state.db.clone();
+            let job_id_clone = job_id.clone();
+            let handle = Handle::current();
+
+            tokio::task::spawn_blocking(move || {
+                handle.block_on(process_job(
+                    db_clone,
+                    job_id_clone,
+                    payload,
+                    starknet_account,
+                ));
+            });
+
+            (
                 StatusCode::CREATED,
-                job_id,
-                "New job request registered and processing initiated.",
+                Json(JobResponse {
+                    job_id: job_id.clone(),
+                    message: Some(
+                        "New job request registered and processing initiated.".to_string(),
+                    ),
+                    status: Some(JobStatus::Pending),
+                }),
             )
         }
         Err(e) => internal_server_error(e, job_id),
@@ -156,12 +167,19 @@ async fn reprocess_failed_job(
     if let Err(e) = update_job_status(&state.db.pool, &job_id, JobStatus::Pending, None).await {
         return internal_server_error(e, job_id);
     }
-    task::spawn(process_job(
-        state.db.clone(),
-        job_id.clone(),
-        payload,
-        starknet_account,
-    ));
+    let db_clone = state.db.clone();
+    let job_id_clone = job_id.clone();
+    let handle = Handle::current();
+
+    tokio::task::spawn_blocking(move || {
+        handle.block_on(process_job(
+            db_clone,
+            job_id_clone,
+            payload,
+            starknet_account,
+        ));
+    });
+
     job_response(
         StatusCode::OK, // Ensure it's 200 OK
         job_id,
@@ -308,11 +326,19 @@ async fn fetch_headers(
     match (twap_headers, volatility_headers, reserve_price_headers) {
         (Ok(twap), Ok(volatility), Ok(reserve)) => {
             tracing::debug!("Headers fetched successfully.");
+            
+            let now = Instant::now();
+            tracing::info!("Started processing...");
+            
             let results = join!(
                 calculate_twap(twap),
                 calculate_volatility(volatility),
                 calculate_reserve_price(reserve)
             );
+
+            let elapsed = now.elapsed();
+            tracing::info!("Elapsed: {:.2?}", elapsed);
+
             match results {
                 (Ok(twap), Ok(volatility), Ok(reserve_price)) => {
                     Some((twap, volatility, reserve_price))
