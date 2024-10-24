@@ -11,6 +11,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   DATABASE_URL: ${{ secrets.DATABASE_URL }} # Ensure DATABASE_URL is globally available
+  STARKNET_RPC_URL: http://127.0.0.1:5050
 
 jobs:
   build-and-test:

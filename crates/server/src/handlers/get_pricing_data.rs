@@ -205,8 +205,6 @@ async fn process_job(
     tracing::info!("Starting job {} processing.", job_id);
     tracing::debug!("Payload received: {:?}", payload);
 
-    dotenv::dotenv().ok();
-
     match fetch_headers(&db, &payload).await {
         Some((twap, volatility, reserve_price)) => {
             tracing::info!(
