@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE job_requests\n        SET status = $1, result = $2\n        WHERE job_id = $3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4bcaa3f2512796fa62805415f1b9ae7f7093af37960f5e878a99f62674e6c393"
+}
