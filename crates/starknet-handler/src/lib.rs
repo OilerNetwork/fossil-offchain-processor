@@ -1,5 +1,6 @@
 use std::env;
 
+use dotenv::dotenv;
 use eyre::Result;
 use starknet::{
     accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
@@ -38,6 +39,8 @@ impl Default for FossilStarknetAccount {
 
 impl FossilStarknetAccount {
     pub fn new() -> Self {
+        dotenv().ok();
+
         let rpc_url =
             env::var("STARKNET_RPC_URL").expect("STARKNET_RPC_URL should be provided as env vars.");
         let account_private_key = env::var("STARKNET_PRIVATE_KEY")

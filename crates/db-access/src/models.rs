@@ -1,4 +1,5 @@
 use eth_rlp_verify::block_header::BlockHeader as EthBlockHeader;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(sqlx::FromRow, Debug)]
@@ -43,7 +44,7 @@ pub struct ApiKey {
     pub name: Option<String>,
 }
 
-#[derive(sqlx::Type, Debug, PartialEq)]
+#[derive(sqlx::Type, Debug, PartialEq, Serialize, Deserialize)]
 #[sqlx(type_name = "TEXT")]
 pub enum JobStatus {
     Pending,
@@ -79,6 +80,7 @@ pub struct JobRequest {
     pub job_id: String,
     pub status: JobStatus,
     pub created_at: chrono::NaiveDateTime,
+    pub result: Option<serde_json::Value>,
 }
 
 #[derive(Debug, sqlx::FromRow)]

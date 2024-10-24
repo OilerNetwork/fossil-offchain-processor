@@ -15,7 +15,7 @@ tracing = { workspace = true }
 dotenv = { workspace = true }
 eyre = { workspace = true }
 
-accumulators = { version = "0.4", features = ["all"] }
+accumulators = { git = "https://github.com/ametel01/rust-accumulators.git", features = ["all"] }
 tracing-subscriber = "0.3"
 uuid = "1.10.0"
 alloy = { version = "0.4.0", features = [

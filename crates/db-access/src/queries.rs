@@ -3,6 +3,7 @@ use crate::models::{
     BlockHeader as DbBlockHeader, BlockHeaderSubset, TempBlockHeader, Transaction,
 };
 use eth_rlp_verify::block_header::BlockHeader;
+use eyre::Result;
 use sqlx::{types::BigDecimal, Error, PgPool};
 
 pub async fn get_transactions_by_block_number(
@@ -167,6 +168,11 @@ pub async fn get_block_headers_by_time_range(
     start_timestamp: i64,
     end_timestamp: i64,
 ) -> Result<Vec<DbBlockHeader>, Error> {
+    tracing::debug!(
+        "Getting block headers by time range: {} to {}",
+        start_timestamp,
+        end_timestamp
+    );
     let headers = sqlx::query_as!(
         DbBlockHeader,
         r#"
@@ -220,7 +226,8 @@ pub async fn get_job_request(
         SELECT 
             job_id, 
             status as "status: JobStatus", 
-            created_at
+            created_at, 
+            result
         FROM job_requests 
         WHERE job_id = $1
         "#,
@@ -234,14 +241,16 @@ pub async fn update_job_status(
     pool: &PgPool,
     job_id: &str,
     status: JobStatus,
+    result: Option<serde_json::Value>,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         UPDATE job_requests
-        SET status = $1
-        WHERE job_id = $2
+        SET status = $1, result = $2
+        WHERE job_id = $3
         "#,
         status.to_string(),
+        result,
         job_id
     )
     .execute(pool)
@@ -298,4 +307,26 @@ pub async fn get_block_headers_by_block_range(
     let headers: Vec<BlockHeader> = temp_headers.into_iter().map(temp_to_block_header).collect();
 
     Ok(headers)
+}
+
+pub async fn update_job_result(
+    pool: &PgPool,
+    job_id: &str,
+    status: &str,
+    result: serde_json::Value,
+) -> Result<()> {
+    sqlx::query!(
+        r#"
+        UPDATE job_requests 
+        SET status = $1, result = $2 
+        WHERE job_id = $3
+        "#,
+        status,
+        result,
+        job_id
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }

@@ -4,7 +4,7 @@ version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
-server = { path = "../server" }
+# server = { path = "../server" }
 
 eyre = { workspace = true }
 dotenv = { workspace = true }
