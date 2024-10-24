@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
     let app = create_app(pool).await;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    
+
     let fmt_layer = fmt::layer()
         .event_format(fmt::format())
         .with_timer(fmt::time::UtcTime::rfc_3339())

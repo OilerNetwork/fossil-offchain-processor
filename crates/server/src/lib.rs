@@ -23,7 +23,7 @@ pub struct AppState {
 pub async fn create_app(pool: PgPool) -> Router {
     let db = DbConnection { pool };
     let app_state = AppState { db: Arc::new(db) };
-    
+
     let secured_routes = Router::new()
         .route(
             "/pricing_data",
