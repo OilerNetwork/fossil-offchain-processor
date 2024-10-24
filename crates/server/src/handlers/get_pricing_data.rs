@@ -40,15 +40,12 @@ pub async fn get_pricing_data(
 
     let starknet_account = FossilStarknetAccount::new();
     let job_id = generate_job_id(&payload.identifiers, &payload.params);
+    println!("job_id: {}", job_id);
 
     tracing::info!("Generated job_id: {}", job_id);
 
     match get_job_request(&state.db.pool, &job_id).await {
         Ok(Some(job_request)) => {
-            tracing::info!(
-                "Handling existing job with status: {:?}",
-                job_request.status
-            );
             handle_existing_job(
                 &state,
                 job_request.status,
@@ -110,12 +107,12 @@ async fn handle_existing_job(
 ) -> (StatusCode, Json<JobResponse>) {
     match status {
         JobStatus::Pending => job_response(
-            StatusCode::CONFLICT,
+            StatusCode::CONFLICT, // 409 Conflict
             job_id,
             "Job is already pending. Use the status endpoint to monitor progress.",
         ),
         JobStatus::Completed => job_response(
-            StatusCode::OK,
+            StatusCode::OK, // 200 OK
             job_id,
             "Job has already been completed. No further processing required.",
         ),
@@ -166,7 +163,7 @@ async fn reprocess_failed_job(
         starknet_account,
     ));
     job_response(
-        StatusCode::OK,
+        StatusCode::OK, // Ensure it's 200 OK
         job_id,
         "Previous job request failed. Reprocessing initiated.",
     )
@@ -207,6 +204,8 @@ async fn process_job(
 ) {
     tracing::info!("Starting job {} processing.", job_id);
     tracing::debug!("Payload received: {:?}", payload);
+
+    dotenv::dotenv().ok();
 
     match fetch_headers(&db, &payload).await {
         Some((twap, volatility, reserve_price)) => {
@@ -392,10 +391,6 @@ mod tests {
     async fn test_get_pricing_data_pending_job() {
         let ctx = TestContext::new().await;
 
-        let job_id =
-            poseidon_hash_single(Felt::from_bytes_be_slice("test-id".as_bytes())).to_string();
-        ctx.create_job(&job_id, JobStatus::Pending).await;
-
         let payload = PitchLakeJobRequest {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
@@ -409,6 +404,9 @@ mod tests {
                 timestamp: 0,
             },
         };
+
+        let job_id = generate_job_id(&payload.identifiers, &payload.params);
+        ctx.create_job(&job_id, JobStatus::Pending).await;
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
 
@@ -424,10 +422,6 @@ mod tests {
     async fn test_get_pricing_data_completed_job() {
         let ctx = TestContext::new().await;
 
-        let job_id =
-            poseidon_hash_single(Felt::from_bytes_be_slice("test-id".as_bytes())).to_string();
-        ctx.create_job(&job_id, JobStatus::Completed).await;
-
         let payload = PitchLakeJobRequest {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
@@ -441,6 +435,9 @@ mod tests {
                 timestamp: 0,
             },
         };
+
+        let job_id = generate_job_id(&payload.identifiers, &payload.params);
+        ctx.create_job(&job_id, JobStatus::Completed).await;
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
 
@@ -456,10 +453,6 @@ mod tests {
     async fn test_get_pricing_data_failed_job() {
         let ctx = TestContext::new().await;
 
-        let job_id =
-            poseidon_hash_single(Felt::from_bytes_be_slice("test-id".as_bytes())).to_string();
-        ctx.create_job(&job_id, JobStatus::Failed).await;
-
         let payload = PitchLakeJobRequest {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
@@ -473,6 +466,9 @@ mod tests {
                 timestamp: 0,
             },
         };
+
+        let job_id = generate_job_id(&payload.identifiers, &payload.params);
+        ctx.create_job(&job_id, JobStatus::Failed).await;
 
         let (status, Json(response)) = ctx.get_pricing_data(payload).await;
 
