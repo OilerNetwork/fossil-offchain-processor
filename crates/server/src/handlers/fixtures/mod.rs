@@ -9,9 +9,7 @@ use db_access::{models::JobStatus, queries::create_job_request, DbConnection};
 use hyper::StatusCode;
 use lazy_static::lazy_static;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
-use testcontainers::{clients::Cli, images::postgres::Postgres as PostgresImage};
-use testcontainers::Container;
-
+use testcontainers::{clients::Cli, images::postgres::Postgres as PostgresImage, Container};
 
 use super::{get_pricing_data::get_pricing_data, job_status::get_job_status};
 
