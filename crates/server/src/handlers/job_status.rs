@@ -7,7 +7,7 @@ use db_access::queries::get_job_request;
 
 #[axum::debug_handler]
 pub async fn get_job_status(
-    State(state): State<AppState>, // Use AppState as the state
+    State(state): State<AppState>,
     axum::extract::Path(job_id): axum::extract::Path<String>,
 ) -> (StatusCode, Json<GetJobStatusResponseEnum>) {
     match get_job_request(&state.db.pool, &job_id).await {

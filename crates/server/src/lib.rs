@@ -23,8 +23,7 @@ pub struct AppState {
 pub async fn create_app(pool: PgPool) -> Router {
     let db = DbConnection { pool };
     let app_state = AppState { db: Arc::new(db) };
-
-    // Routes that require authentication
+    
     let secured_routes = Router::new()
         .route(
             "/pricing_data",
@@ -32,7 +31,6 @@ pub async fn create_app(pool: PgPool) -> Router {
         )
         .layer(from_fn_with_state(app_state.clone(), simple_apikey_auth));
 
-    // Public routes (no authentication required)
     let public_routes = Router::new()
         .route("/health", get(handlers::health_check::health_check))
         .route("/api_key", post(handlers::api_key::create_api_key))

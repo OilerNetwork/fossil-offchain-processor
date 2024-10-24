@@ -92,7 +92,6 @@ fn generate_job_id(identifiers: &[String], params: &PitchLakeJobRequestParams) -
         params.reserve_price.1
     ));
 
-    // Hash the concatenated string using Poseidon
     poseidon_hash_single(Felt::from_bytes_be_slice(input.as_bytes())).to_string()
 }
 
@@ -106,12 +105,12 @@ async fn handle_existing_job(
 ) -> (StatusCode, Json<JobResponse>) {
     match status {
         JobStatus::Pending => job_response(
-            StatusCode::CONFLICT, // 409 Conflict
+            StatusCode::CONFLICT,
             job_id,
             "Job is already pending. Use the status endpoint to monitor progress.",
         ),
         JobStatus::Completed => job_response(
-            StatusCode::OK, // 200 OK
+            StatusCode::OK,
             job_id,
             "Job has already been completed. No further processing required.",
         ),
@@ -181,7 +180,7 @@ async fn reprocess_failed_job(
     });
 
     job_response(
-        StatusCode::OK, // Ensure it's 200 OK
+        StatusCode::OK,
         job_id,
         "Previous job request failed. Reprocessing initiated.",
     )
