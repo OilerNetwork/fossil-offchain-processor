@@ -141,7 +141,6 @@ mod tests {
         },
     };
     use starknet_crypto::Felt;
-    use tokio;
 
     #[ignore]
     #[tokio::test]
