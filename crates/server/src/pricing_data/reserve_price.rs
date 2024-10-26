@@ -1,4 +1,5 @@
 use db_access::models::BlockHeader;
+use ndarray_linalg::LeastSquaresSvd;
 
 use super::utils::hex_string_to_f64;
 use chrono::prelude::*;
@@ -8,7 +9,6 @@ use linfa::traits::Fit;
 use linfa_linear::{FittedLinearRegression, LinearRegression};
 use ndarray::prelude::*;
 use ndarray::{stack, Array1, Array2, Axis};
-use ndarray_linalg::LeastSquaresSvd;
 use ndarray_rand::rand_distr::Normal;
 use optimization::{Func, GradientDescent, Minimizer, NumericalDifferentiation};
 use polars::prelude::*;
