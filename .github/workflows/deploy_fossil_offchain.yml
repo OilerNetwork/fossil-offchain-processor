@@ -3,7 +3,7 @@ name: Build and Run Yokai Agent Docker Container
 on:
   push:
     branches:
-      - feat/ci_cd_fossil
+      - main
 
 env:
   AWS_REGION: us-east-1
