@@ -11,7 +11,7 @@ env:
   ECS_SERVICE: fossil-offchain-processor-app-ecs
   ECS_CLUSTER: fossil-offchain-processor-ecs-cluster
   CONTAINER_NAME: fossil-offchian-app 
-  TASK_NAME: fossil-offchian-app 
+  TASK_NAME: fossil-offchain-processor-app-ecs
 
 permissions:
   id-token: write
