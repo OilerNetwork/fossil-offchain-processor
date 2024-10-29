@@ -4,7 +4,9 @@ use crate::rpc::utils::json_to_block_header;
 use dotenv::dotenv;
 use eth_rlp_verify::block_header::BlockHeader;
 use eyre::Result;
+use reqwest::blocking::Client as BlockingClient;
 use reqwest::Client;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::env;
 
@@ -75,4 +77,29 @@ pub async fn get_block_headers_in_range(
     }
 
     Ok(block_headers)
+}
+
+#[derive(Deserialize)]
+struct EtherscanResponse {
+    status: String,
+    message: String,
+    result: String,
+}
+
+pub async fn get_block_by_timestamp(timestamp: u64, closest: &str) -> Result<u64> {
+    let api_key = "S2161TQ7QZ13XUV4PJ5NIPCDQ2W2IYUJS6";
+    let url = format!(
+        "https://api.etherscan.io/api?module=block&action=getblocknobytime&timestamp={}&closest={}&apikey={}",
+        timestamp, closest, api_key
+    );
+
+    let client = Client::new();
+    let response = client.get(&url).send().await?;
+    let etherscan_response: EtherscanResponse = response.json().await?;
+
+    if etherscan_response.status == "1" {
+        Ok(etherscan_response.result.parse()?)
+    } else {
+        Err(eyre::eyre!("Error: {}", etherscan_response.message))
+    }
 }
