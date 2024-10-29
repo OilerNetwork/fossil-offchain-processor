@@ -20,7 +20,7 @@ use crate::{
 use db_access::{
     models::JobStatus,
     queries::{create_job_request, get_job_request, update_job_status},
-    rpc::get_block_headers_by_time_range,
+    rpc::{filter_headers, get_block_headers_by_time_range, get_largest_time_range},
     DbConnection,
 };
 use starknet::core::types::U256;
@@ -302,31 +302,29 @@ async fn process_job(
 
 // Helper to fetch block headers in parallel
 async fn fetch_headers(payload: &PitchLakeJobRequest) -> Option<(f64, f64, f64)> {
-    tracing::debug!("Fetching block headers for calculations.");
+    tracing::info!("Fetching block headers for calculations.");
 
-    let (twap_headers, volatility_headers, reserve_price_headers) = join!(
-        get_block_headers_by_time_range(payload.params.twap.0 as u64, payload.params.twap.1 as u64),
-        get_block_headers_by_time_range(
-            payload.params.volatility.0 as u64,
-            payload.params.volatility.1 as u64
-        ),
-        get_block_headers_by_time_range(
-            payload.params.reserve_price.0 as u64,
-            payload.params.reserve_price.1 as u64
-        )
-    );
+    let largest_range = get_largest_time_range(&[
+        payload.params.twap,
+        payload.params.volatility,
+        payload.params.reserve_price,
+    ]);
 
-    match (twap_headers, volatility_headers, reserve_price_headers) {
-        (Ok(twap), Ok(volatility), Ok(reserve)) => {
+    match get_block_headers_by_time_range(largest_range.0 as u64, largest_range.1 as u64).await {
+        Ok(all_headers) => {
             tracing::debug!("Headers fetched successfully.");
+
+            let twap_headers = filter_headers(&all_headers, payload.params.twap);
+            let volatility_headers = filter_headers(&all_headers, payload.params.volatility);
+            let reserve_price_headers = filter_headers(&all_headers, payload.params.reserve_price);
 
             let now = Instant::now();
             tracing::info!("Started processing...");
 
             let results = join!(
-                calculate_twap(twap),
-                calculate_volatility(volatility),
-                calculate_reserve_price(reserve)
+                calculate_twap(twap_headers),
+                calculate_volatility(volatility_headers),
+                calculate_reserve_price(reserve_price_headers)
             );
 
             let elapsed = now.elapsed();
@@ -339,7 +337,7 @@ async fn fetch_headers(payload: &PitchLakeJobRequest) -> Option<(f64, f64, f64)>
                 _ => None,
             }
         }
-        _ => None,
+        Err(_) => None,
     }
 }
 

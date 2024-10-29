@@ -39,6 +39,7 @@ pub async fn calculate_volatility(blocks: Vec<EthBlockHeader>) -> Result<f64> {
         .map(|&r| (r - mean_return).powi(2))
         .sum::<f64>()
         / returns.len() as f64;
+    tracing::debug!("variance: {}", variance);
 
     // Square root the variance to get the volatility, translate to BPS (integer)
     Ok((variance.sqrt() * 10_000.0).round())

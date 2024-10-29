@@ -5,9 +5,9 @@ use starknet_crypto::Felt;
 // timestamp ranges for each sub-job calculation
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct PitchLakeJobRequestParams {
-    pub twap: (i64, i64),
-    pub volatility: (i64, i64),
-    pub reserve_price: (i64, i64),
+    pub twap: (u64, u64),
+    pub volatility: (u64, u64),
+    pub reserve_price: (u64, u64),
 }
 
 #[derive(Debug, Deserialize, Serialize)]

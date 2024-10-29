@@ -1,11 +1,12 @@
 mod utils;
 
 use crate::rpc::utils::json_to_block_header;
+use alloy_chains::Chain;
 use dotenv::dotenv;
 use eth_rlp_verify::block_header::BlockHeader;
 use eyre::Result;
+use foundry_block_explorers::Client as EtherscanClient;
 use reqwest::Client;
-use serde::Deserialize;
 use serde_json::{json, Value};
 use std::env;
 
@@ -43,8 +44,10 @@ pub async fn get_block_headers_by_time_range(
     start_timestamp: u64,
     end_timestamp: u64,
 ) -> Result<Vec<BlockHeader>> {
-    let start_block_number = get_block_number_by_timestamp(start_timestamp, "before").await?;
-    let end_block_number = get_block_number_by_timestamp(end_timestamp, "after").await?;
+    let start_block_number = get_block_number_by_timestamp(start_timestamp).await?;
+    let end_block_number = get_block_number_by_timestamp(end_timestamp).await?;
+    tracing::info!("Start block number: {}", start_block_number);
+    tracing::info!("End block number: {}", end_block_number);
 
     get_block_headers_in_range(start_block_number, end_block_number).await
 }
@@ -88,27 +91,48 @@ pub async fn get_block_headers_in_range(
     Ok(block_headers)
 }
 
-#[derive(Deserialize)]
-struct EtherscanResponse {
-    status: String,
-    message: String,
-    result: String,
+pub async fn get_block_number_by_timestamp(timestamp: u64) -> Result<u64> {
+    tracing::debug!("Getting block number by timestamp: {}", timestamp);
+    let client = EtherscanClient::new(Chain::mainnet(), "S2161TQ7QZ13XUV4PJ5NIPCDQ2W2IYUJS6")?;
+    let response = client.get_block_by_timestamp(timestamp, "before").await?;
+
+    let block_number = response
+        .block_number
+        .as_number()
+        .expect("Block number is not a number")
+        .try_into()
+        .expect("Failed to convert block number");
+
+    tracing::debug!("Block number: {}", block_number);
+
+    Ok(block_number)
 }
 
-pub async fn get_block_number_by_timestamp(timestamp: u64, closest: &str) -> Result<u64> {
-    let api_key = "S2161TQ7QZ13XUV4PJ5NIPCDQ2W2IYUJS6";
-    let url = format!(
-        "https://api.etherscan.io/api?module=block&action=getblocknobytime&timestamp={}&closest={}&apikey={}",
-        timestamp, closest, api_key
-    );
+pub fn filter_headers(all_headers: &[BlockHeader], range: (u64, u64)) -> Vec<BlockHeader> {
+    all_headers
+        .iter()
+        .filter_map(|header| {
+            header.timestamp.as_ref().and_then(|ts| {
+                u64::from_str_radix(ts.trim_start_matches("0x"), 16).ok()
+            }).and_then(|timestamp| {
+                if timestamp >= range.0 && timestamp <= range.1 {
+                    Some(header.clone())
+                } else {
+                    None
+                }
+            })
+        })
+        .collect()
+}
 
-    let client = Client::new();
-    let response = client.get(&url).send().await?;
-    let etherscan_response: EtherscanResponse = response.json().await?;
-
-    if etherscan_response.status == "1" {
-        Ok(etherscan_response.result.parse()?)
-    } else {
-        Err(eyre::eyre!("Error: {}", etherscan_response.message))
-    }
+pub fn get_largest_time_range(ranges: &[(u64, u64)]) -> (u64, u64) {
+    ranges.iter().fold(ranges[0], |acc, &range| {
+        let acc_duration = acc.1 - acc.0;
+        let range_duration = range.1 - range.0;
+        if range_duration > acc_duration {
+            range
+        } else {
+            acc
+        }
+    })
 }

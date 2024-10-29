@@ -18,6 +18,7 @@ use statrs::distribution::Binomial;
 use std::f64::consts::PI;
 
 pub async fn calculate_reserve_price(block_headers: Vec<EthBlockHeader>) -> Result<f64> {
+    tracing::info!("Starting reserve price calculation.");
     if block_headers.is_empty() {
         tracing::error!("No block headers provided.");
         return Err(eyre::eyre!("No block headers provided."));
@@ -27,6 +28,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<EthBlockHeader>) -> Resu
     let mut base_fees = Vec::new();
 
     for header in block_headers {
+        tracing::debug!("Processing header: {:?}", header);
         let timestamp = header
             .timestamp
             .ok_or_else(|| err!("No timestamp in header"))?;
@@ -35,17 +37,31 @@ pub async fn calculate_reserve_price(block_headers: Vec<EthBlockHeader>) -> Resu
                 .base_fee_per_gas
                 .ok_or_else(|| err!("No base fee in header"))?,
         )?;
+        tracing::debug!(
+            "Parsed timestamp: {} | Parsed base fee: {}",
+            timestamp,
+            base_fee
+        );
+
         timestamps.push(timestamp);
         base_fees.push(base_fee);
     }
+
+    tracing::debug!("Collected timestamps: {:?}", timestamps);
+    tracing::debug!("Collected base fees: {:?}", base_fees);
 
     let mut df = DataFrame::new(vec![
         Series::new("timestamp".into(), timestamps),
         Series::new("base_fee".into(), base_fees),
     ])?;
 
+    tracing::debug!("Initial DataFrame: {:?}", df);
+
     df = replace_timestamp_with_date(df)?;
+    tracing::debug!("After date conversion: {:?}", df);
+
     df = group_by_1h_intervals(df)?;
+    tracing::debug!("After grouping by 1h intervals: {:?}", df);
 
     df = add_twap_7d(df)?;
     let twap_7d_series = df.column("TWAP_7d")?;
@@ -54,29 +70,39 @@ pub async fn calculate_reserve_price(block_headers: Vec<EthBlockHeader>) -> Resu
         err!("The series is empty")
     })?;
 
+    tracing::info!("Strike price: {}", strike);
+
     let num_paths = 15000;
     let n_periods = 720;
     let cap_level = 0.3;
     let risk_free_rate = 0.05;
 
     let mut df = drop_nulls(&df, "TWAP_7d")?;
+    tracing::debug!("After dropping nulls: {:?}", df);
 
     let period_end_date_timestamp = df
         .column("date")?
         .datetime()?
         .get(df.height() - 1)
         .ok_or_else(|| err!("No row {} in the date column", df.height() - 1))?;
+    tracing::debug!("Period end timestamp: {}", period_end_date_timestamp);
 
     let period_start_date_timestamp = df
         .column("date")?
         .datetime()?
         .get(0)
         .ok_or_else(|| err!("No row 0 in the date column"))?;
+    tracing::debug!("Period start timestamp: {}", period_start_date_timestamp);
 
     let log_base_fee = compute_log_of_base_fees(&df)?;
+    tracing::debug!("Log base fees: {:?}", log_base_fee);
+
     df.with_column(Series::new("log_base_fee".into(), log_base_fee))?;
 
     let (trend_model, trend_values) = discover_trend(&df)?;
+    tracing::debug!("Trend model params: {:?}", trend_model.params());
+    tracing::debug!("Trend values: {:?}", trend_values);
+
     df.with_column(Series::new("trend".into(), trend_values))?;
     df.with_column(Series::new(
         "detrended_log_base_fee".into(),
@@ -96,12 +122,21 @@ pub async fn calculate_reserve_price(block_headers: Vec<EthBlockHeader>) -> Resu
         num_paths,
     )?;
 
+    tracing::debug!(
+        "Simulated detrended prices: {:?}",
+        de_seasonalized_detrended_simulated_prices
+    );
+
     let total_hours = (period_end_date_timestamp - period_start_date_timestamp) / 3600 / 1000;
+    tracing::debug!("Total hours in period: {}", total_hours);
+
     let sim_hourly_times: Array1<f64> =
         Array1::range(0.0, n_periods as f64, 1.0).mapv(|i| total_hours as f64 + i);
 
     let c = season_matrix(sim_hourly_times);
     let season = c.dot(&season_param);
+    tracing::debug!("Season matrix product: {:?}", season);
+
     let season_reshaped = season.into_shape((n_periods, 1)).unwrap();
 
     let detrended_simulated_prices = &de_seasonalized_detrended_simulated_prices + &season_reshaped;
@@ -112,15 +147,19 @@ pub async fn calculate_reserve_price(block_headers: Vec<EthBlockHeader>) -> Resu
         .into_no_null_iter()
         .map(|x| x.ln())
         .collect();
+    tracing::debug!("Log TWAP 7d: {:?}", log_twap_7d);
 
     let returns: Vec<f64> = log_twap_7d
         .windows(2)
         .map(|window| window[1] - window[0])
         .collect();
     let returns: Vec<f64> = returns.into_iter().filter(|&x| !x.is_nan()).collect();
+    tracing::debug!("Returns: {:?}", returns);
 
     let mu = 0.05 / 52.0;
     let sigma = standard_deviation(returns) * f64::sqrt(24.0 * 7.0);
+    tracing::debug!("Sigma: {}", sigma);
+
     let dt = 1.0 / 24.0;
 
     let mut stochastic_trend = Array2::<f64>::zeros((n_periods, num_paths));
@@ -134,6 +173,8 @@ pub async fn calculate_reserve_price(block_headers: Vec<EthBlockHeader>) -> Resu
             stochastic_trend[[j, i]] = cumsum;
         }
     }
+
+    tracing::debug!("Stochastic trend: {:?}", stochastic_trend);
 
     let coeffs = trend_model.params();
     let final_trend_value = {
@@ -541,6 +582,7 @@ fn add_twap_7d(df: DataFrame) -> Result<DataFrame> {
     let required_window_size = 24 * 7;
 
     tracing::debug!("DataFrame shape before TWAP: {:?}", df.shape());
+    tracing::debug!("df height: {}", df.height());
 
     if df.height() < required_window_size {
         return Err(err!(
@@ -634,22 +676,37 @@ fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
 ///
 fn replace_timestamp_with_date(df: DataFrame) -> Result<DataFrame> {
     tracing::debug!("DataFrame shape before date conversion: {:?}", df.shape());
-    tracing::debug!(
-        "Time range: min={:?}, max={:?}",
-        df.column("timestamp")?.i64()?.min(),
-        df.column("timestamp")?.i64()?.max()
-    );
+    tracing::debug!("Timestamp column: {:?}", df.column("timestamp"));
 
-    let dates = df
-        .column("timestamp")?
-        .i64()?
-        .apply(|s| s.map(|s| s * 1000))
-        .into_series()
-        .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))?
-        .rename("date".into())
-        .clone();
+    // Ensure the column is of type String
+    let timestamp_col = df.column("timestamp")?;
+    if timestamp_col.dtype() != &DataType::String {
+        return Err(eyre::eyre!("Timestamp column is not of type String"));
+    }
 
-    // Create a new DataFrame with the date column instead of timestamp
+    // Parse hex-encoded timestamps into i64 values
+    let parsed_timestamps: Vec<i64> = timestamp_col
+        .str()? // Use str() instead of utf8()
+        .into_iter()
+        .map(|opt| opt.and_then(|s| i64::from_str_radix(s.trim_start_matches("0x"), 16).ok()))
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| eyre::eyre!("Failed to parse timestamps"))?;
+
+    tracing::debug!("Parsed timestamps: {:?}", parsed_timestamps);
+
+    // Convert to milliseconds and create a Series
+    let dates = Series::new(
+        "date".into(),
+        parsed_timestamps
+            .into_iter()
+            .map(|ts| ts * 1000) // Convert seconds to milliseconds
+            .collect::<Vec<_>>(),
+    )
+    .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))?;
+
+    tracing::debug!("Dates series: {:?}", dates);
+
+    // Create a new DataFrame with the date column replacing timestamp
     let mut new_cols: Vec<Series> = Vec::new();
     for col in df.get_columns() {
         if col.name() != "timestamp" {

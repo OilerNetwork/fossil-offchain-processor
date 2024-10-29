@@ -17,6 +17,7 @@ pub async fn calculate_twap(headers: Vec<EthBlockHeader>) -> Result<f64> {
     })?;
 
     let twap_result = total_base_fee / headers.len() as f64;
+    tracing::debug!("twap_result: {}", twap_result);
 
     Ok(twap_result)
 }

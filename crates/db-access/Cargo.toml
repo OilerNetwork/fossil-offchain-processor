@@ -12,6 +12,8 @@ dotenv = { workspace = true }
 eyre = { workspace = true }
 tracing = { workspace = true }
 
+alloy-chains = "0.1.42"
+foundry-block-explorers = "0.8.0"
 chrono = "0.4.38"
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 serde = { version = "1.0", features = ["derive"] }
