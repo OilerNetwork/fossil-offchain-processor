@@ -20,7 +20,7 @@ use crate::{
 use db_access::{
     models::JobStatus,
     queries::{create_job_request, get_job_request, update_job_status},
-    rpc::{get_block_by_timestamp, get_block_headers_in_range},
+    rpc::get_block_headers_by_time_range,
     DbConnection,
 };
 use starknet::core::types::U256;
@@ -127,11 +127,17 @@ async fn handle_new_job_request(
     match create_job_request(&state.db.pool, &job_id, JobStatus::Pending).await {
         Ok(_) => {
             tracing::info!("New job request registered and processing initiated.");
+            let db_clone = state.db.clone();
             let job_id_clone = job_id.clone();
             let handle = Handle::current();
 
             tokio::task::spawn_blocking(move || {
-                handle.block_on(process_job(job_id_clone, payload, starknet_account));
+                handle.block_on(process_job(
+                    db_clone,
+                    job_id_clone,
+                    payload,
+                    starknet_account,
+                ));
             });
 
             (
@@ -159,12 +165,17 @@ async fn reprocess_failed_job(
     if let Err(e) = update_job_status(&state.db.pool, &job_id, JobStatus::Pending, None).await {
         return internal_server_error(e, job_id);
     }
-    // let db_clone = state.db.clone();
+    let db_clone = state.db.clone();
     let job_id_clone = job_id.clone();
     let handle = Handle::current();
 
     tokio::task::spawn_blocking(move || {
-        handle.block_on(process_job(job_id_clone, payload, starknet_account));
+        handle.block_on(process_job(
+            db_clone,
+            job_id_clone,
+            payload,
+            starknet_account,
+        ));
     });
 
     job_response(
@@ -202,7 +213,7 @@ fn internal_server_error(error: sqlx::Error, job_id: String) -> (StatusCode, Jso
 
 // Process the job and trigger the Starknet callback
 async fn process_job(
-    // db: Arc<DbConnection>,
+    db: Arc<DbConnection>,
     job_id: String,
     payload: PitchLakeJobRequest,
     starknet_account: FossilStarknetAccount,
@@ -290,28 +301,19 @@ async fn process_job(
 }
 
 // Helper to fetch block headers in parallel
-async fn fetch_headers(
-    // db: &Arc<DbConnection>,
-    payload: &PitchLakeJobRequest,
-) -> Option<(f64, f64, f64)> {
+async fn fetch_headers(payload: &PitchLakeJobRequest) -> Option<(f64, f64, f64)> {
     tracing::debug!("Fetching block headers for calculations.");
 
-    let twap_start_timestamp = payload.params.twap.0 as u64;
-    let twap_end_timestamp = payload.params.twap.1 as u64;
-    let volatility_start_timestamp = payload.params.volatility.0 as u64;
-    let volatility_end_timestamp = payload.params.volatility.1 as u64;
-    let reserve_price_start_timestamp = payload.params.reserve_price.0 as u64;
-    let reserve_price_end_timestamp = payload.params.reserve_price.1 as u64;
-
-    let twap_volatility_start_block = get_block_by_timestamp(twap_start_timestamp, "before");
-    let twap_volatility_end_block = get_block_by_timestamp(twap_end_timestamp, "after");
-    let reserve_price_start_block = get_block_by_timestamp(reserve_price_start_timestamp, "before");
-    let reserve_price_end_block = get_block_by_timestamp(reserve_price_end_timestamp, "after");
-
     let (twap_headers, volatility_headers, reserve_price_headers) = join!(
-        get_block_headers_in_range(twap_volatility_start_block, twap_volatility_end_block),
-        get_block_headers_in_range(volatility_start_block, volatility_end_block),
-        get_block_headers_in_range(reserve_price_start_block, reserve_price_end_block)
+        get_block_headers_by_time_range(payload.params.twap.0 as u64, payload.params.twap.1 as u64),
+        get_block_headers_by_time_range(
+            payload.params.volatility.0 as u64,
+            payload.params.volatility.1 as u64
+        ),
+        get_block_headers_by_time_range(
+            payload.params.reserve_price.0 as u64,
+            payload.params.reserve_price.1 as u64
+        )
     );
 
     match (twap_headers, volatility_headers, reserve_price_headers) {

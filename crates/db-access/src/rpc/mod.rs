@@ -4,7 +4,6 @@ use crate::rpc::utils::json_to_block_header;
 use dotenv::dotenv;
 use eth_rlp_verify::block_header::BlockHeader;
 use eyre::Result;
-use reqwest::blocking::Client as BlockingClient;
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -38,6 +37,16 @@ pub async fn get_block_by_number(block_number: u64) -> Result<BlockHeader> {
     let block_header = json_to_block_header(&result["result"]);
 
     Ok(block_header)
+}
+
+pub async fn get_block_headers_by_time_range(
+    start_timestamp: u64,
+    end_timestamp: u64,
+) -> Result<Vec<BlockHeader>> {
+    let start_block_number = get_block_number_by_timestamp(start_timestamp, "before").await?;
+    let end_block_number = get_block_number_by_timestamp(end_timestamp, "after").await?;
+
+    get_block_headers_in_range(start_block_number, end_block_number).await
 }
 
 pub async fn get_block_headers_in_range(
@@ -86,7 +95,7 @@ struct EtherscanResponse {
     result: String,
 }
 
-pub async fn get_block_by_timestamp(timestamp: u64, closest: &str) -> Result<u64> {
+pub async fn get_block_number_by_timestamp(timestamp: u64, closest: &str) -> Result<u64> {
     let api_key = "S2161TQ7QZ13XUV4PJ5NIPCDQ2W2IYUJS6";
     let url = format!(
         "https://api.etherscan.io/api?module=block&action=getblocknobytime&timestamp={}&closest={}&apikey={}",

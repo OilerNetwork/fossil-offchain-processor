@@ -12,6 +12,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 sqlx = { workspace = true }
 dotenv = "0.15.0"
+reqwest = { version = "0.11", features = ["json"] }
 
 # Use axum with the appropriate features (without 'tower')
 axum = { version = "0.7.7", features = ["http1", "http2", "json", "macros"] }

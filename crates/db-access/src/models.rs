@@ -1,4 +1,4 @@
-use eth_rlp_verify::block_header::BlockHeader as EthBlockHeader;
+pub use eth_rlp_verify::block_header::BlockHeader as EthBlockHeader;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

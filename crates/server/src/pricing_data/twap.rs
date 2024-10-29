@@ -1,8 +1,8 @@
 use super::utils::hex_string_to_f64;
-use db_access::models::BlockHeader;
+use db_access::models::EthBlockHeader;
 use eyre::{anyhow, Result};
 
-pub async fn calculate_twap(headers: Vec<BlockHeader>) -> Result<f64> {
+pub async fn calculate_twap(headers: Vec<EthBlockHeader>) -> Result<f64> {
     if headers.is_empty() {
         return Err(anyhow!("The provided block headers are empty."));
     }

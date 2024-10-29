@@ -1,4 +1,4 @@
-use db_access::models::BlockHeader;
+use db_access::models::EthBlockHeader;
 use ndarray_linalg::LeastSquaresSvd;
 
 use super::utils::hex_string_to_f64;
@@ -17,7 +17,7 @@ use rand_distr::Distribution;
 use statrs::distribution::Binomial;
 use std::f64::consts::PI;
 
-pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64> {
+pub async fn calculate_reserve_price(block_headers: Vec<EthBlockHeader>) -> Result<f64> {
     if block_headers.is_empty() {
         tracing::error!("No block headers provided.");
         return Err(eyre::eyre!("No block headers provided."));
