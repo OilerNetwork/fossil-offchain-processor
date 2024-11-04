@@ -1,0 +1,17 @@
+[package]
+name = "block-validity-bin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+db-access = { git = "https://github.com/OilerNetwork/fossil-offchain-processor.git" }
+eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git" }
+block-validity = { path = "../" }
+
+tracing = "0.1"
+tokio = "1"
+eyre = "0.6"
+
+tracing-subscriber = "0.3.16"
+
+[workspace]

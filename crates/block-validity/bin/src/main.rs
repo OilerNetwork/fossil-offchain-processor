@@ -1,3 +1,5 @@
+pub mod verify_rpc_block;
+
 use block_validity::utils::are_blocks_and_chain_valid;
 use db_access::rpc::get_block_headers_in_range;
 use eyre::Result;
