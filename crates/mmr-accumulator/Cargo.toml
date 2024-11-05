@@ -18,6 +18,8 @@ eyre = { workspace = true }
 accumulators = { version = "0.4", features = ["all"] }
 tracing-subscriber = "0.3"
 uuid = "1.10.0"
+# alloy = { version = "0.5.4", features = ["providers"]}
+# alloy-sol-types = { version = "0.8.10", features = []}
 alloy = { version = "0.4.0", features = [
     "full",
     "node-bindings",
@@ -32,6 +34,6 @@ alloy = { version = "0.4.0", features = [
     "signer-trezor",
     "signer-yubihsm",
 ] }
-eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git" }
+
 thiserror = "1.0"
 reqwest = "0.12.5"

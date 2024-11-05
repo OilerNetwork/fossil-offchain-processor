@@ -122,9 +122,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-chains"
-version = "0.1.46"
+version = "0.1.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "836cf02383d9ebb35502d379bcd1ae803155094077eaab9c29131d888cd5fa3e"
+checksum = "18c5c520273946ecf715c0010b4e3503d7eba9893cd9ce6b7fff5654c4a3c470"
 dependencies = [
  "alloy-primitives",
  "num_enum",
@@ -1253,9 +1253,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-runtime-api"
-version = "1.7.2"
+version = "1.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e086682a53d3aa241192aa110fa8dfce98f2f5ac2ead0de84d41582c7e8fdb96"
+checksum = "92165296a47a812b267b4f41032ff8069ab7ff783696d217f0994a0d7ab585cd"
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-types",
@@ -1270,9 +1270,9 @@ dependencies = [
 
 [[package]]
 name = "aws-smithy-types"
-version = "1.2.8"
+version = "1.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07c9cdc179e6afbf5d391ab08c85eac817b51c87e1892a5edb5f7bbdc64314b4"
+checksum = "4fbd94a32b3a7d55d3806fe27d98d3ad393050439dd05eb53ece36ec5e3d3510"
 dependencies = [
  "base64-simd",
  "bytes",
@@ -2160,9 +2160,9 @@ checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
 name = "db-access"
 version = "0.1.0"
 dependencies = [
+ "block-validity",
  "chrono",
  "dotenv",
- "eth-rlp-verify",
  "eyre",
  "reqwest 0.11.27",
  "serde",
@@ -2462,7 +2462,7 @@ dependencies = [
 [[package]]
 name = "eth-rlp-verify"
 version = "0.1.0"
-source = "git+https://github.com/ametel01/eth-rlp-verify.git#b0311f7e18293e302967cbefc0a673a9f7f2f3fb"
+source = "git+https://github.com/ametel01/eth-rlp-verify.git#6e122c5cef93840062087be12f10627897a8746d"
 dependencies = [
  "ethereum-types 0.15.1",
  "eyre",
@@ -3906,7 +3906,6 @@ dependencies = [
  "block-validity",
  "db-access",
  "dotenv",
- "eth-rlp-verify",
  "eyre",
  "reqwest 0.12.9",
  "sqlx 0.7.4",
@@ -5769,9 +5768,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.38"
+version = "0.38.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa260229e6538e52293eeb577aabd09945a09d6d9cc0fc550ed7529056c2e32a"
+checksum = "375116bee2be9ed569afe2154ea6a99dfdffd257f533f187498c2a8f5feaf4ee"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
@@ -6204,7 +6203,7 @@ dependencies = [
  "sqlx 0.7.4",
  "sqlx-database-tester",
  "starknet 0.12.0",
- "starknet-crypto 0.7.2",
+ "starknet-crypto 0.7.3",
  "starknet-handler",
  "statrs",
  "testcontainers",
@@ -6789,7 +6788,7 @@ dependencies = [
  "starknet-accounts 0.11.0",
  "starknet-contract 0.11.0",
  "starknet-core 0.12.0",
- "starknet-crypto 0.7.2",
+ "starknet-crypto 0.7.3",
  "starknet-macros 0.2.1",
  "starknet-providers 0.12.0",
  "starknet-signers 0.10.0",
@@ -6818,7 +6817,7 @@ dependencies = [
  "async-trait",
  "auto_impl",
  "starknet-core 0.12.0",
- "starknet-crypto 0.7.2",
+ "starknet-crypto 0.7.3",
  "starknet-providers 0.12.0",
  "starknet-signers 0.10.0",
  "thiserror",
@@ -6905,7 +6904,7 @@ dependencies = [
  "serde_json_pythonic",
  "serde_with 3.11.0",
  "sha3",
- "starknet-crypto 0.7.2",
+ "starknet-crypto 0.7.3",
  "starknet-types-core",
 ]
 
@@ -6931,9 +6930,9 @@ dependencies = [
 
 [[package]]
 name = "starknet-crypto"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60a5064173a8e8d2675e67744fd07f310de44573924b6b7af225a6bdd8102913"
+checksum = "ded22ccf4cb9e572ce3f77de6066af53560cd2520d508876c83bb1e6b29d5cbc"
 dependencies = [
  "crypto-bigint",
  "hex",
@@ -6999,7 +6998,7 @@ dependencies = [
  "dotenv",
  "eyre",
  "starknet 0.12.0",
- "starknet-crypto 0.7.2",
+ "starknet-crypto 0.7.3",
  "tokio",
 ]
 
@@ -7093,7 +7092,7 @@ dependencies = [
  "getrandom 0.2.15",
  "rand 0.8.5",
  "starknet-core 0.12.0",
- "starknet-crypto 0.7.2",
+ "starknet-crypto 0.7.3",
  "thiserror",
 ]
 

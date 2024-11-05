@@ -4,7 +4,7 @@ version = { workspace = true }
 edition = { workspace = true }
 
 [dependencies]
-eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git" }
+eth-rlp-verify = { git = "https://github.com/ametel01/eth-rlp-verify.git"}
 
 tracing = { workspace = true }
 

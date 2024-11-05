@@ -1,13 +1,13 @@
 use block_validity::utils::are_blocks_and_chain_valid;
-use db_access::queries::get_block_headers_by_block_range;
-use db_access::DbConnection;
+use db_access::rpc::get_block_headers_in_range;
+// use db_access::DbConnection;
 use eyre::{ContextCompat, Result};
 use mmr_accumulator::error::MMRProcessorError;
 use mmr_accumulator::ethereum::get_finalized_block_hash;
 use mmr_accumulator::processor_utils::*;
 use tracing::info;
 
-const BATCH_SIZE: u64 = 63;
+const BATCH_SIZE: u64 = 8;
 
 #[tokio::main]
 async fn main() -> Result<(), MMRProcessorError> {
@@ -20,7 +20,7 @@ async fn main() -> Result<(), MMRProcessorError> {
     let (finalized_block_number, finalized_block_hash) = get_finalized_block_hash().await?;
     info!("Finalized block number: {}", finalized_block_number);
 
-    let db = DbConnection::new().await?;
+    // let db = DbConnection::new().await?;
 
     // Initialize MMR
     let db_file = 0;
@@ -37,10 +37,9 @@ async fn main() -> Result<(), MMRProcessorError> {
 
         let start_block = batch_last_block_number.saturating_sub(BATCH_SIZE);
 
-        let block_headers = get_block_headers_by_block_range(
-            &db.pool,
-            start_block as i64,
-            batch_last_block_number as i64,
+        let block_headers = get_block_headers_in_range(
+            start_block,
+            batch_last_block_number,
         )
         .await?;
         info!("Fetched block headers: {}", block_headers.len());
