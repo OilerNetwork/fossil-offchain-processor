@@ -77,7 +77,7 @@ impl FossilStarknetAccount {
 
         let tx = self
             .account
-            .execute_v1(vec![Call {
+            .execute_v3(vec![Call {
                 selector: get_selector_from_name("fossil_callback").unwrap(),
                 calldata,
                 to: client_address,
