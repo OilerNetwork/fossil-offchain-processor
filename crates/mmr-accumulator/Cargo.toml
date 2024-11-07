@@ -15,7 +15,12 @@ tracing = { workspace = true }
 dotenv = { workspace = true }
 eyre = { workspace = true }
 
-accumulators = { version = "0.4", features = ["all"] }
+hasher = { git = "https://github.com/ametel01/rust-accumulators.git", branch = "workspace", features = ["poseidon"] }
+mmr = { git = "https://github.com/ametel01/rust-accumulators.git", branch = "workspace" }
+store = { git = "https://github.com/ametel01/rust-accumulators.git", branch = "workspace" }
+
+
+
 tracing-subscriber = "0.3"
 uuid = "1.10.0"
 # alloy = { version = "0.5.4", features = ["providers"]}

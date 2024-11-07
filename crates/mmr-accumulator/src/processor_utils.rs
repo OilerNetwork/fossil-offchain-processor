@@ -1,14 +1,14 @@
 use crate::store::StoreManager;
-use accumulators::{
-    hasher::stark_poseidon::StarkPoseidonHasher, mmr::MMR, store::sqlite::SQLiteStore,
-};
 use db_access::{queries::get_block_hashes_by_block_range, DbConnection};
 use eyre::Result;
+use hasher::stark_poseidon::StarkPoseidonHasher;
+use mmr::MMR;
 use sqlx::{Row, SqlitePool};
 use std::env;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use store::sqlite::SQLiteStore;
 use tracing::info;
 use uuid::Uuid;
 

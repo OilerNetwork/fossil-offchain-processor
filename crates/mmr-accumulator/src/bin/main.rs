@@ -1,11 +1,9 @@
-use accumulators::{
-    hasher::stark_poseidon::StarkPoseidonHasher,
-    mmr::MMR,
-    store::{sqlite::SQLiteStore, SubKey},
-};
 use eyre::Result;
+use hasher::stark_poseidon::StarkPoseidonHasher;
+use mmr::MMR;
 use sqlx::SqlitePool;
 use std::sync::Arc;
+use store::{sqlite::SQLiteStore, SubKey};
 use tracing::{error, info};
 
 #[tokio::main]

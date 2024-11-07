@@ -59,6 +59,6 @@ mockall = "0.13"
 testcontainers = "0.14"
 lazy_static = "1.4"
 tokio = { version = "1", features = ["full"] }
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres"] }
+sqlx = { version = "0.8.2", features = ["runtime-tokio-rustls", "postgres"] }
 axum-test = "16.2"
 sqlx-database-tester = { version = "0.4.2", features = ["runtime-tokio"] }

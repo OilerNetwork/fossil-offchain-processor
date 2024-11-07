@@ -1,8 +1,8 @@
-use accumulators::store::{sqlite::SQLiteStore, StoreError};
 use eyre::Result;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use std::sync::Arc;
+use store::{sqlite::SQLiteStore, StoreError};
 use tokio::sync::Mutex;
 
 #[allow(dead_code)]

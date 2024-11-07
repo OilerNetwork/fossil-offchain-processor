@@ -37,11 +37,8 @@ async fn main() -> Result<(), MMRProcessorError> {
 
         let start_block = batch_last_block_number.saturating_sub(BATCH_SIZE);
 
-        let block_headers = get_block_headers_in_range(
-            start_block,
-            batch_last_block_number,
-        )
-        .await?;
+        let block_headers =
+            get_block_headers_in_range(start_block, batch_last_block_number).await?;
         info!("Fetched block headers: {}", block_headers.len());
 
         if block_headers.is_empty() {

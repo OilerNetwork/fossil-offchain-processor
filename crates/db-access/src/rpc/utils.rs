@@ -44,9 +44,7 @@ pub fn json_to_block_header(block_result: &Value) -> BlockHeader {
         withdrawals_root: block_result["withdrawalsRoot"]
             .as_str()
             .map(|s| s.to_string()),
-            blob_gas_used: block_result["blobGasUsed"]
-            .as_str()
-            .map(|s| s.to_string()),
+        blob_gas_used: block_result["blobGasUsed"].as_str().map(|s| s.to_string()),
         excess_blob_gas: block_result["excessBlobGas"]
             .as_str()
             .map(|s| s.to_string()),

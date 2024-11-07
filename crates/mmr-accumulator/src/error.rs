@@ -9,7 +9,7 @@ pub enum MMRProcessorError {
     RpcError(#[from] reqwest::Error),
 
     #[error("MMR error: {0}")]
-    MmrError(#[from] accumulators::mmr::MMRError), // Handle MMR-specific errors
+    MmrError(#[from] mmr::MMRError), // Handle MMR-specific errors
 
     #[error("Block hash mismatch: expected {expected:?}, got {actual:?}")]
     BlockHashMismatch { expected: String, actual: String },
