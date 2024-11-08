@@ -8,6 +8,7 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+
     depends_on:
       migration:
         condition: service_completed_successfully
@@ -34,6 +35,10 @@ services:
       dockerfile: crates/server/Dockerfile.migration
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+      - STARKNET_RPC_URL=http://juno_plugin:6060
+      - STARKNET_ACCOUNT_ADDRESS=0x101
+      - STARKNET_PRIVATE_KEY=0x2bff1b26236b72d8a930be1dfbee09f79a536a49482a4c8b8f1030e2ab3bf1b
+      - ETH_RPC_URL=https://eth-mainnet.public.blastapi.io
     depends_on:
       db:
         condition: service_healthy
