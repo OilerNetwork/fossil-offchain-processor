@@ -6,3 +6,4 @@ pub mod ethereum;
 pub mod processor_utils;
 pub mod store;
 pub use block_validity::BlockHeader;
+pub use mmr::MMR;
