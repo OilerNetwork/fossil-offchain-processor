@@ -2192,7 +2192,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "dotenv",
- "eth-rlp-verify",
+ "eth-rlp-types",
  "eyre",
  "reqwest 0.11.27",
  "serde",
@@ -2476,6 +2476,18 @@ dependencies = [
  "sha3",
  "thiserror",
  "uuid 0.8.2",
+]
+
+[[package]]
+name = "eth-rlp-types"
+version = "0.1.0"
+source = "git+https://github.com/piwonskp/eth-rlp-verify.git#bd8c61b2184f91e062ea2697c24a992b0bd6ab4c"
+dependencies = [
+ "ethereum-types 0.15.1",
+ "eyre",
+ "hex",
+ "serde",
+ "sha3",
 ]
 
 [[package]]
