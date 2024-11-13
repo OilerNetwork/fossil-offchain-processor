@@ -4,9 +4,8 @@ use crate::{
     types::{GetJobStatusResponseEnum, JobResponse, PitchLakeJobRequest},
     AppState,
 };
-use axum::{extract::State, Json};
+use axum::{extract::State, http::StatusCode, Json};
 use db_access::{models::JobStatus, queries::create_job_request, DbConnection};
-use hyper::StatusCode;
 use lazy_static::lazy_static;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use testcontainers::{clients::Cli, images::postgres::Postgres as PostgresImage, Container};

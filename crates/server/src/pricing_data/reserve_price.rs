@@ -1,4 +1,5 @@
 use db_access::models::BlockHeader;
+use ndarray_linalg::LeastSquaresSvd;
 
 use super::utils::hex_string_to_f64;
 use chrono::prelude::*;
@@ -8,7 +9,6 @@ use linfa::traits::Fit;
 use linfa_linear::{FittedLinearRegression, LinearRegression};
 use ndarray::prelude::*;
 use ndarray::{stack, Array1, Array2, Axis};
-use ndarray_linalg::LeastSquaresSvd;
 use ndarray_rand::rand_distr::Normal;
 use optimization::{Func, GradientDescent, Minimizer, NumericalDifferentiation};
 use polars::prelude::*;
@@ -40,8 +40,8 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
     }
 
     let mut df = DataFrame::new(vec![
-        Series::new("timestamp", timestamps),
-        Series::new("base_fee", base_fees),
+        Series::new("timestamp".into(), timestamps),
+        Series::new("base_fee".into(), base_fees),
     ])?;
 
     df = replace_timestamp_with_date(df)?;
@@ -74,19 +74,19 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         .ok_or_else(|| err!("No row 0 in the date column"))?;
 
     let log_base_fee = compute_log_of_base_fees(&df)?;
-    df.with_column(Series::new("log_base_fee", log_base_fee))?;
+    df.with_column(Series::new("log_base_fee".into(), log_base_fee))?;
 
     let (trend_model, trend_values) = discover_trend(&df)?;
-    df.with_column(Series::new("trend", trend_values))?;
+    df.with_column(Series::new("trend".into(), trend_values))?;
     df.with_column(Series::new(
-        "detrended_log_base_fee",
+        "detrended_log_base_fee".into(),
         df["log_base_fee"].f64()? - df["trend"].f64()?,
     ))?;
 
     let (de_seasonalised_detrended_log_base_fee, season_param) =
         remove_seasonality(&mut df, period_start_date_timestamp)?;
     df.with_column(Series::new(
-        "de_seasonalized_detrended_log_base_fee",
+        "de_seasonalized_detrended_log_base_fee".into(),
         de_seasonalised_detrended_log_base_fee.clone().to_vec(),
     ))?;
 
@@ -206,7 +206,7 @@ fn remove_seasonality(
         })
         .collect();
 
-    df.with_column(Series::new("t", t_series))?;
+    df.with_column(Series::new("t".into(), t_series))?;
 
     let t_array = df["t"].f64()?.to_ndarray()?.to_owned();
     let c = season_matrix(t_array);
@@ -646,7 +646,7 @@ fn replace_timestamp_with_date(df: DataFrame) -> Result<DataFrame> {
         .apply(|s| s.map(|s| s * 1000))
         .into_series()
         .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))?
-        .rename("date")
+        .rename("date".into())
         .clone();
 
     // Create a new DataFrame with the date column instead of timestamp

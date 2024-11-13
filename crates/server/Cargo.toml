@@ -33,24 +33,22 @@ tracing-subscriber = { version = "0.3.18", features = [
     "time",
 ] }
 time = "0.3.11"
-futures = "0.3.31"
 # Reserve price dependencies
 linfa = "0.7.0"
 linfa-linear = "0.7.0"
 ndarray = "0.15"
+# NOTE: as ndarray-linalg only builds for x86 arch, we must build our images in that arch as long as we use this lib.
 ndarray-linalg = { version = "0.16", features = ["openblas-system"] }
-polars = { version = "0.41.3", features = [
+polars = { version = "0.43", features = [
     "lazy",
     "dynamic_group_by",
     "rolling_window",
     "ndarray",
 ] }
-statrs = "0.16"
+statrs = "0.17"
 optimization = "0.2.0"
 rand = "0.8.5"
 rand_distr = "0.4.3"
-# async-trait = "0.1.83"
-hyper = "1.0"
 ndarray-rand = "0.15.0"
 uuid = { version = "1.10.0", features = ["v4"] }
 
