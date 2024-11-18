@@ -2,6 +2,7 @@ use db_access::{auth::add_api_key, DbConnection};
 use eyre::Result;
 use std::env;
 use tracing::info;
+use tracing_subscriber;
 use uuid::Uuid;
 
 #[tokio::main]
