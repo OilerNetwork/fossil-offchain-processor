@@ -2,7 +2,7 @@
 members = [
     "crates/server",
     "crates/db-access",
-    "crates/mmr-accumulator",
+    # "crates/mmr-accumulator",
     "crates/block-validity",
     "crates/starknet-handler",
 ]
