@@ -425,14 +425,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block-validity"
-version = "0.1.0"
-dependencies = [
- "eth-rlp-verify",
- "tracing",
-]
-
-[[package]]
 name = "bollard-stubs"
 version = "1.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -910,9 +902,9 @@ dependencies = [
 name = "db-access"
 version = "0.1.0"
 dependencies = [
- "block-validity",
  "chrono",
  "dotenv",
+ "eth-rlp-types",
  "eyre",
  "reqwest",
  "serde",
@@ -1105,17 +1097,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "eth-rlp-verify"
+name = "eth-rlp-types"
 version = "0.1.0"
-source = "git+https://github.com/ametel01/eth-rlp-verify.git#468f8c03a60858ac0c420000a32cc8e1c96f6fd1"
+source = "git+https://github.com/ametel01/eth-rlp-verify.git#29a0d5bc4176457a9ab119d9089e3f89e5ba7545"
 dependencies = [
  "ethereum-types 0.15.1",
  "eyre",
  "hex",
- "rlp 0.6.1",
  "serde",
  "sha3",
- "tracing",
 ]
 
 [[package]]

@@ -1,4 +1,4 @@
-use block_validity::BlockHeader as EthBlockHeader;
+use eth_rlp_types::BlockHeader as EthBlockHeader;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

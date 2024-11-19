@@ -2,7 +2,7 @@ use crate::models::{temp_to_block_header, JobRequest, JobStatus};
 use crate::models::{
     BlockHeader as DbBlockHeader, BlockHeaderSubset, TempBlockHeader, Transaction,
 };
-use block_validity::BlockHeader;
+use eth_rlp_types::BlockHeader;
 use eyre::Result;
 use sqlx::{types::BigDecimal, Error, PgPool};
 

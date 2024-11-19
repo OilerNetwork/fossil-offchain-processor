@@ -1,4 +1,4 @@
-use block_validity::BlockHeader;
+use eth_rlp_types::BlockHeader;
 use eyre::Result;
 use serde_json;
 use std::fs::File;

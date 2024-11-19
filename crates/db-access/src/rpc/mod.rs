@@ -1,8 +1,8 @@
 mod utils;
 
 use crate::rpc::utils::json_to_block_header;
-use block_validity::BlockHeader;
 use dotenv::dotenv;
+use eth_rlp_types::BlockHeader;
 use eyre::Result;
 use reqwest::Client;
 use serde_json::{json, Value};
