@@ -10,7 +10,7 @@ env:
   ECR_REPOSITORY: fossil-offchain-processor-images-repository
   ECS_SERVICE: fossil-offchain-processor-app-ecs
   ECS_CLUSTER: fossil-offchain-processor-ecs-cluster
-  CONTAINER_NAME: fossil-offchian-app 
+  CONTAINER_NAME: fossil-offchian-app
   TASK_NAME: fossil-offchain-processor-app-ecs
 
 permissions:
@@ -53,8 +53,10 @@ jobs:
         run: |
           IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-          docker buildx build --platform=linux/amd64 -f ./crates/server/Dockerfile -t $IMAGE_URI .
-          docker push $IMAGE_URI
+          docker buildx build --platform=linux/amd64 \
+            -f ./crates/server/Dockerfile \
+            -t $IMAGE_URI \
+            --push .
 
       - name: Download task definition
         run: |
