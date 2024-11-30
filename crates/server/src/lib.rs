@@ -56,6 +56,6 @@ pub async fn create_app(pool: PgPool) -> Router {
         .merge(secured_routes)
         .merge(public_routes)
         .layer(TraceLayer::new_for_http())
-        .layer(cors_layer) // Apply the custom CORS layer
+        .layer(cors_layer)
         .with_state(app_state)
 }
