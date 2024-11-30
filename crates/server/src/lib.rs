@@ -13,7 +13,11 @@ use axum::{
 use db_access::DbConnection;
 use sqlx::PgPool;
 use std::sync::Arc;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use std::time::Duration;
+use tower_http::{
+    cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer},
+    trace::TraceLayer,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -23,6 +27,15 @@ pub struct AppState {
 pub async fn create_app(pool: PgPool) -> Router {
     let db = DbConnection { pool };
     let app_state = AppState { db: Arc::new(db) };
+
+    // Define the CORS layer
+    let cors_layer = CorsLayer::new()
+        .allow_origin(AllowOrigin::exact(
+            "https://api.fossil.nethermind.dev".parse().unwrap(),
+        ))
+        .allow_methods(AllowMethods::any()) // Allow all methods
+        .allow_headers(AllowHeaders::any()) // Allow all headers
+        .max_age(Duration::from_secs(3600)); // Cache preflight response for 1 hour
 
     let secured_routes = Router::new()
         .route(
@@ -43,6 +56,6 @@ pub async fn create_app(pool: PgPool) -> Router {
         .merge(secured_routes)
         .merge(public_routes)
         .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive())
+        .layer(cors_layer)
         .with_state(app_state)
 }
