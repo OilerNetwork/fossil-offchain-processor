@@ -33,7 +33,7 @@ pub async fn create_app(pool: PgPool) -> Router {
         .allow_origin(AllowOrigin::exact(
             "https://api.fossil.nethermind.dev".parse().unwrap(),
         ))
-        .allow_methods(AllowMethods::any()) // Allow all methods (customize as needed)
+        .allow_methods(AllowMethods::any()) // Allow all methods
         .allow_headers(AllowHeaders::any()) // Allow all headers
         .max_age(Duration::from_secs(3600)); // Cache preflight response for 1 hour
 
