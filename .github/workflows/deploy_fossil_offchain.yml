@@ -69,6 +69,12 @@ jobs:
           task-definition: task-definition.json
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ env.IMAGE_URI }}
+          environment-variables: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            STARKNET_RPC_URL=${{ secrets.STARKNET_RPC_URL }}
+            STARKNET_ACCOUNT_ADDRESS=${{ secrets.STARKNET_ACCOUNT_ADDRESS }}
+            STARKNET_PRIVATE_KEY=${{ secrets.STARKNET_PRIVATE_KEY }}
+            ETH_RPC_URL=${{ secrets.ETH_RPC_URL }}
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
