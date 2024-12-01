@@ -75,7 +75,6 @@ jobs:
             STARKNET_ACCOUNT_ADDRESS=${{ secrets.SECRET_STARKNET_ACCOUNT_ADDRESS }}
             STARKNET_PRIVATE_KEY=${{ secrets.SECRET_STARKNET_PRIVATE_KEY }}
             ETH_RPC_URL=${{ secrets.SECRET_ETH_RPC_URL }}
-        
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
