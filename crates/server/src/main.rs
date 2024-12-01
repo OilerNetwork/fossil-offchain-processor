@@ -12,11 +12,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Validate required environment variables
     validate_env_vars(&[
-        "DATABASE_URL",
-        "STARKNET_RPC_URL",
-        "STARKNET_ACCOUNT_ADDRESS",
-        "STARKNET_PRIVATE_KEY",
-        "ETH_RPC_URL",
+        "SECRET_DATABASE_URL",
+        "SECRET_STARKNET_RPC_URL",
+        "SECRET_STARKNET_ACCOUNT_ADDRESS",
+        "SECRET_STARKNET_PRIVATE_KEY",
+        "SECRET_ETH_RPC_URL",
     ])?;
 
     let pool = PgPool::connect(&env::var("DATABASE_URL")?).await?;

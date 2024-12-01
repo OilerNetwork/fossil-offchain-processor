@@ -70,11 +70,12 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ env.IMAGE_URI }}
           environment-variables: |
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            STARKNET_RPC_URL=${{ secrets.STARKNET_RPC_URL }}
-            STARKNET_ACCOUNT_ADDRESS=${{ secrets.STARKNET_ACCOUNT_ADDRESS }}
-            STARKNET_PRIVATE_KEY=${{ secrets.STARKNET_PRIVATE_KEY }}
-            ETH_RPC_URL=${{ secrets.ETH_RPC_URL }}
+            DATABASE_URL=${{ secrets.SECRET_DATABASE_URL }}
+            STARKNET_RPC_URL=${{ secrets.SECRET_STARKNET_RPC_URL }}
+            STARKNET_ACCOUNT_ADDRESS=${{ secrets.SECRET_STARKNET_ACCOUNT_ADDRESS }}
+            STARKNET_PRIVATE_KEY=${{ secrets.SECRET_STARKNET_PRIVATE_KEY }}
+            ETH_RPC_URL=${{ secrets.SECRET_ETH_RPC_URL }}
+        
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
