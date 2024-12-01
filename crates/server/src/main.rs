@@ -2,14 +2,24 @@ use dotenv::dotenv;
 use server::create_app;
 use sqlx::PgPool;
 use std::error::Error;
-use tracing::info;
+use std::env;
+use tracing::{error, info};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     dotenv().ok();
 
-    let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
+    // Validate required environment variables
+    validate_env_vars(&[
+        "DATABASE_URL",
+        "STARKNET_RPC_URL",
+        "STARKNET_ACCOUNT_ADDRESS",
+        "STARKNET_PRIVATE_KEY",
+        "ETH_RPC_URL",
+    ])?;
+
+    let pool = PgPool::connect(&env::var("DATABASE_URL")?).await?;
     let app = create_app(pool).await;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
 
@@ -29,5 +39,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Server is listening on {}", listener.local_addr()?);
     axum::serve(listener, app.into_make_service()).await?;
+    Ok(())
+}
+
+/// Helper function to validate required environment variables
+fn validate_env_vars(required_vars: &[&str]) -> Result<(), Box<dyn Error>> {
+    let mut missing_vars = Vec::new();
+
+    for &var in required_vars {
+        if env::var(var).is_err() {
+            missing_vars.push(var);
+        }
+    }
+
+    if !missing_vars.is_empty() {
+        for var in &missing_vars {
+            error!("Missing required environment variable: {}", var);
+        }
+        return Err(format!(
+            "Missing required environment variables: {:?}",
+            missing_vars
+        )
+        .into());
+    }
+
+    info!("All required environment variables are loaded.");
     Ok(())
 }
