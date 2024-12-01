@@ -1,8 +1,8 @@
 use dotenv::dotenv;
 use server::create_app;
 use sqlx::PgPool;
-use std::error::Error;
 use std::env;
+use std::error::Error;
 use tracing::{error, info};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
@@ -56,11 +56,7 @@ fn validate_env_vars(required_vars: &[&str]) -> Result<(), Box<dyn Error>> {
         for var in &missing_vars {
             error!("Missing required environment variable: {}", var);
         }
-        return Err(format!(
-            "Missing required environment variables: {:?}",
-            missing_vars
-        )
-        .into());
+        return Err(format!("Missing required environment variables: {:?}", missing_vars).into());
     }
 
     info!("All required environment variables are loaded.");
