@@ -13,9 +13,12 @@ use axum::{
 use db_access::DbConnection;
 use sqlx::PgPool;
 use std::sync::Arc;
-use std::time::Duration;
+//use std::time::Duration;
 use tower_http::{
-    cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer},
+    cors::{
+        // AllowHeaders, AllowMethods, AllowOrigin,
+        CorsLayer,
+    },
     trace::TraceLayer,
 };
 
@@ -29,20 +32,21 @@ pub async fn create_app(pool: PgPool) -> Router {
     let app_state = AppState { db: Arc::new(db) };
 
     // Define the CORS layer
-    let cors_layer = CorsLayer::new()
-        .allow_origin(AllowOrigin::exact(
-            "https://api.fossil.nethermind.dev".parse().unwrap(),
-        ))
-        .allow_methods(AllowMethods::any()) // Allow all methods
-        .allow_headers(AllowHeaders::any()) // Allow all headers
-        .max_age(Duration::from_secs(3600)); // Cache preflight response for 1 hour
-
+    // TODO: Review CORs policies, any cors need to be for the outermost layer (last layer applied)
+    //let cors_layer = CorsLayer::new()
+    //    .allow_origin([
+    //        "https://app.pitchlake.nethermind.dev".parse().unwrap(),
+    //    ])
+    //    .allow_methods(AllowMethods::any())
+    //    .allow_headers(AllowHeaders::any())
+    //    .max_age(Duration::from_secs(3600));
     let secured_routes = Router::new()
         .route(
             "/pricing_data",
             post(handlers::get_pricing_data::get_pricing_data),
         )
         .layer(from_fn_with_state(app_state.clone(), simple_apikey_auth));
+    //.layer(cors_layer.clone());
 
     let public_routes = Router::new()
         .route("/health", get(handlers::health_check::health_check))
@@ -50,12 +54,13 @@ pub async fn create_app(pool: PgPool) -> Router {
         .route(
             "/job_status/:job_id",
             get(handlers::job_status::get_job_status),
-        );
+        )
+        .layer(CorsLayer::permissive());
+    //.layer(cors_layer.clone());
 
     Router::new()
         .merge(secured_routes)
         .merge(public_routes)
         .layer(TraceLayer::new_for_http())
-        .layer(cors_layer)
         .with_state(app_state)
 }
