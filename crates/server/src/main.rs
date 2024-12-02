@@ -19,8 +19,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_thread_names(true)
         .with_thread_ids(true);
 
-    let filter_layer =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,sqlx=error"));
+    let filter_layer = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,tracing=info,sqlx=error"));
 
     Registry::default()
         .with(fmt_layer)

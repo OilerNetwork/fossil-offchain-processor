@@ -10,23 +10,31 @@ pub async fn get_job_status(
     State(state): State<AppState>,
     axum::extract::Path(job_id): axum::extract::Path<String>,
 ) -> (StatusCode, Json<GetJobStatusResponseEnum>) {
+    tracing::info!("Getting status for job_id: {}", job_id);
+
     match get_job_request(&state.db.pool, &job_id).await {
-        Ok(Some(job)) => (
-            StatusCode::OK,
-            Json(GetJobStatusResponseEnum::Success(JobResponse {
-                job_id: job.job_id,
-                message: None,
-                status: Some(job.status),
-            })),
-        ),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(GetJobStatusResponseEnum::Error(ErrorResponse {
-                error: "Job not found".to_string(),
-            })),
-        ),
+        Ok(Some(job)) => {
+            tracing::info!("Found job status: {:?} for job_id: {}", job.status, job_id);
+            (
+                StatusCode::OK,
+                Json(GetJobStatusResponseEnum::Success(JobResponse {
+                    job_id: job.job_id,
+                    message: None,
+                    status: Some(job.status),
+                })),
+            )
+        }
+        Ok(None) => {
+            tracing::info!("Job not found for job_id: {}", job_id);
+            (
+                StatusCode::NOT_FOUND,
+                Json(GetJobStatusResponseEnum::Error(ErrorResponse {
+                    error: "Job not found".to_string(),
+                })),
+            )
+        }
         Err(e) => {
-            tracing::error!("Failed to get job status: {:?}", e);
+            tracing::error!("Failed to get job status for job_id {}: {:?}", job_id, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(GetJobStatusResponseEnum::Error(ErrorResponse {
