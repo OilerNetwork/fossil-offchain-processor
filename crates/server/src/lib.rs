@@ -13,9 +13,12 @@ use axum::{
 use db_access::DbConnection;
 use sqlx::PgPool;
 use std::sync::Arc;
-use std::time::Duration;
+//use std::time::Duration;
 use tower_http::{
-    cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer},
+    cors::{
+        // AllowHeaders, AllowMethods, AllowOrigin,
+        CorsLayer,
+    },
     trace::TraceLayer,
 };
 
