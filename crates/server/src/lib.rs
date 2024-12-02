@@ -30,9 +30,9 @@ pub async fn create_app(pool: PgPool) -> Router {
 
     // Define the CORS layer
     let cors_layer = CorsLayer::new()
-        .allow_origin(AllowOrigin::exact(
-            "https://api.fossil.nethermind.dev".parse().unwrap(),
-        ))
+        .allow_origin([
+            "https://app.pitchlake.nethermind.dev".parse().unwrap(),
+        ])
         .allow_methods(AllowMethods::any()) // Allow all methods
         .allow_headers(AllowHeaders::any()) // Allow all headers
         .max_age(Duration::from_secs(3600)); // Cache preflight response for 1 hour
