@@ -20,6 +20,10 @@ You can run the whole of the api server locally by using docker compose. This wi
 2. The migration service which will terminate once migration is completed
 3. The service itself
 
+First, you'll need to set the environment variables in the `.env` file. Create a copy of `.env.example` (root) into the `crates/server` directory, name it `.env` and fill in the values.
+
+Now you can run the components with:
+
 ```bash
 docker compose -f ./crates/server/docker-compose.yml up
 ```
