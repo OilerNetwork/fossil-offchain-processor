@@ -61,7 +61,7 @@ impl FossilStarknetAccount {
                 provider,
                 signer,
                 Felt::from_hex(&account_address).expect("Invalid address provided"),
-                chain_id::SEPOLIA,
+                Felt::from_hex("0x534e5f4a554e4f5f53455155454e434552").expect("Invalid chain id provided"),
                 ExecutionEncoding::New,
             ),
         }
@@ -74,6 +74,7 @@ impl FossilStarknetAccount {
         result: &PitchLakeResult,
     ) -> Result<Felt> {
         let calldata = format_pitchlake_calldata(job_request, result);
+        println!("Sending callback to contract {} with calldata: {:?}", client_address, calldata);
 
         let tx = self
             .account
