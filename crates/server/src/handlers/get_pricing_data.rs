@@ -1,3 +1,5 @@
+use dotenv::dotenv;
+use std::env;
 use std::sync::Arc;
 
 use axum::{
@@ -308,6 +310,15 @@ async fn fetch_headers(
 ) -> Option<(f64, f64, f64)> {
     tracing::debug!("Fetching block headers for calculations.");
 
+    dotenv().ok();
+    let use_mock_pricing_data = env::var("USE_MOCK_PRICING_DATA")
+        .expect("USE_MOCK_PRICING_DATA should be provided as env vars.");
+
+    if use_mock_pricing_data.to_lowercase() == "true" {
+        tracing::info!("Using mock pricing data");
+        return Some((14732102267.474916, 440.0, 2597499408.638207));
+    }
+
     let (twap_headers, volatility_headers, reserve_price_headers) = join!(
         get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),
         get_block_headers_by_time_range(
@@ -329,23 +340,21 @@ async fn fetch_headers(
             let now = Instant::now();
             tracing::info!("Started processing...");
 
-            // let results = join!(
-            //     calculate_twap(twap),
-            //     calculate_volatility(volatility),
-            //     calculate_reserve_price(reserve)
-            // );
+            let results = join!(
+                calculate_twap(twap),
+                calculate_volatility(volatility),
+                calculate_reserve_price(reserve)
+            );
 
-            // let elapsed = now.elapsed();
-            // tracing::info!("Elapsed: {:.2?}", elapsed);
+            let elapsed = now.elapsed();
+            tracing::info!("Elapsed: {:.2?}", elapsed);
 
-            // match results {
-            //     (Ok(twap), Ok(volatility), Ok(reserve_price)) => {
-            //         Some((twap, volatility, reserve_price))
-            //     }
-            //     _ => None,
-            // }
-
-            Some((14732102267.474916, 440.0, 2597499408.638207))
+            match results {
+                (Ok(twap), Ok(volatility), Ok(reserve_price)) => {
+                    Some((twap, volatility, reserve_price))
+                }
+                _ => None,
+            }
         }
         _ => None,
     }
