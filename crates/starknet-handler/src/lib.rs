@@ -84,11 +84,6 @@ impl FossilStarknetAccount {
         result: &PitchLakeResult,
     ) -> Result<Felt> {
         let calldata = format_pitchlake_calldata(job_request, result);
-        println!(
-            "Sending callback to contract {} with calldata: {:?}",
-            client_address, calldata
-        );
-
         let tx = self
             .account
             .execute_v1(vec![Call {
