@@ -308,20 +308,7 @@ async fn fetch_headers(
 ) -> Option<(f64, f64, f64)> {
     tracing::debug!("Fetching block headers for calculations.");
 
-<<<<<<< Updated upstream
-    let (twap_headers, volatility_headers, reserve_price_headers) = join!(
-=======
-    dotenv().ok();
-    let use_mock_pricing_data = env::var("USE_MOCK_PRICING_DATA")
-        .expect("USE_MOCK_PRICING_DATA should be provided as env vars.");
-
-    if use_mock_pricing_data.to_lowercase() == "true" {
-        tracing::info!("Using mock pricing data");
-        return Some((14732102267.474916, 440.0, 2597499408.638207));
-    }
-
     let (twap_headers, max_returns_headers, reserve_price_headers) = join!(
->>>>>>> Stashed changes
         get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),
         get_block_headers_by_time_range(
             &db.pool,
