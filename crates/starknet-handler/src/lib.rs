@@ -22,7 +22,7 @@ pub struct JobRequest {
 #[derive(Debug)]
 pub struct PitchLakeResult {
     pub twap: U256,
-    pub volatility: u128,
+    pub max_returns: u128,
     pub reserve_price: U256,
 }
 
@@ -110,7 +110,7 @@ pub fn format_pitchlake_calldata(
     let pitch_lake_result_felts = vec![
         Felt::from(pitch_lake_result.twap.low()),
         Felt::from(pitch_lake_result.twap.high()),
-        Felt::from(pitch_lake_result.volatility),
+        Felt::from(pitch_lake_result.max_returns),
         Felt::from(pitch_lake_result.reserve_price.low()),
         Felt::from(pitch_lake_result.reserve_price.high()),
         // Mocked proof data
@@ -197,7 +197,7 @@ mod tests {
 
         let pitch_lake_result = PitchLakeResult {
             twap: U256::from(5000_u64),           // Random TWAP value
-            volatility: 100,                      // Random volatility value
+            max_returns: 100,                     // Random max returns value
             reserve_price: U256::from(20000_u64), // Random reserve price value
         };
 

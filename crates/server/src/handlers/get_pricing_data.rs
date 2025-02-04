@@ -12,8 +12,8 @@ use crate::types::{JobResponse, PitchLakeJobRequest};
 use crate::AppState;
 use crate::{
     pricing_data::{
-        reserve_price::calculate_reserve_price, twap::calculate_twap,
-        volatility::calculate_volatility,
+        max_returns::calculate_max_returns, reserve_price::calculate_reserve_price,
+        twap::calculate_twap,
     },
     types::PitchLakeJobRequestParams,
 };
@@ -86,8 +86,8 @@ fn generate_job_id(identifiers: &[String], params: &PitchLakeJobRequestParams) -
         "{}{}{}{}{}{}",
         params.twap.0,
         params.twap.1,
-        params.volatility.0,
-        params.volatility.1,
+        params.max_returns.0,
+        params.max_returns.1,
         params.reserve_price.0,
         params.reserve_price.1
     ));
@@ -223,15 +223,15 @@ async fn process_job(
     tracing::debug!("Payload received: {:?}", payload);
 
     match fetch_headers(&db, &payload).await {
-        Some((twap, volatility, reserve_price)) => {
+        Some((twap, max_returns, reserve_price)) => {
             tracing::info!(
-                "Fetched block headers for job {}. Calculated values: TWAP = {}, Volatility = {}, Reserve Price = {}",
-                job_id, twap, volatility, reserve_price
+                "Fetched block headers for job {}. Calculated values: TWAP = {}, max_returns = {}, Reserve Price = {}",
+                job_id, twap, max_returns, reserve_price
             );
 
             let result = PitchLakeResult {
                 twap: U256::from(twap as u128),
-                volatility: volatility as u128,
+                max_returns: max_returns as u128,
                 reserve_price: U256::from(reserve_price as u128),
             };
 
@@ -241,7 +241,7 @@ async fn process_job(
                 JobStatus::Completed,
                 Some(serde_json::json!({
                     "twap": twap,
-                    "volatility": volatility,
+                    "max_returns": max_returns,
                     "reserve_price": reserve_price,
                 })),
             )
@@ -308,12 +308,25 @@ async fn fetch_headers(
 ) -> Option<(f64, f64, f64)> {
     tracing::debug!("Fetching block headers for calculations.");
 
+<<<<<<< Updated upstream
     let (twap_headers, volatility_headers, reserve_price_headers) = join!(
+=======
+    dotenv().ok();
+    let use_mock_pricing_data = env::var("USE_MOCK_PRICING_DATA")
+        .expect("USE_MOCK_PRICING_DATA should be provided as env vars.");
+
+    if use_mock_pricing_data.to_lowercase() == "true" {
+        tracing::info!("Using mock pricing data");
+        return Some((14732102267.474916, 440.0, 2597499408.638207));
+    }
+
+    let (twap_headers, max_returns_headers, reserve_price_headers) = join!(
+>>>>>>> Stashed changes
         get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),
         get_block_headers_by_time_range(
             &db.pool,
-            payload.params.volatility.0,
-            payload.params.volatility.1
+            payload.params.max_returns.0,
+            payload.params.max_returns.1
         ),
         get_block_headers_by_time_range(
             &db.pool,
@@ -322,8 +335,8 @@ async fn fetch_headers(
         )
     );
 
-    match (twap_headers, volatility_headers, reserve_price_headers) {
-        (Ok(twap), Ok(volatility), Ok(reserve)) => {
+    match (twap_headers, max_returns_headers, reserve_price_headers) {
+        (Ok(twap), Ok(max_returns), Ok(reserve)) => {
             tracing::debug!("Headers fetched successfully.");
 
             let now = Instant::now();
@@ -331,7 +344,7 @@ async fn fetch_headers(
 
             let results = join!(
                 calculate_twap(twap),
-                calculate_volatility(volatility),
+                calculate_max_returns(max_returns),
                 calculate_reserve_price(reserve)
             );
 
@@ -339,8 +352,8 @@ async fn fetch_headers(
             tracing::info!("Elapsed: {:.2?}", elapsed);
 
             match results {
-                (Ok(twap), Ok(volatility), Ok(reserve_price)) => {
-                    Some((twap, volatility, reserve_price))
+                (Ok(twap), Ok(max_returns), Ok(reserve_price)) => {
+                    Some((twap, max_returns, reserve_price))
                 }
                 _ => None,
             }
@@ -355,7 +368,7 @@ fn validate_time_ranges(
 ) -> Result<(), (StatusCode, JobResponse)> {
     let validations = [
         ("TWAP", params.twap),
-        ("Volatility", params.volatility),
+        ("Max_returns", params.max_returns),
         ("Reserve Price", params.reserve_price),
     ];
 
@@ -390,7 +403,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (0, 100),
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
@@ -418,7 +431,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (0, 100),
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
@@ -449,7 +462,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (0, 100),
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
@@ -480,7 +493,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (0, 100),
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
@@ -511,7 +524,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (100, 0), // Invalid range
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
