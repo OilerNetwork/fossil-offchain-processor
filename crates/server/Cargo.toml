@@ -42,8 +42,10 @@ time = "0.3.11"
 linfa = "0.7.0"
 linfa-linear = "0.7.0"
 ndarray = "0.15"
-# NOTE: as ndarray-linalg only builds for x86 arch, we must build our images in that arch as long as we use this lib.
-ndarray-linalg = { version = "0.16", features = ["openblas-system"] }
+# Update ndarray-linalg to use a specific version known to work with LAPACK
+ndarray-linalg = { version = "0.15", features = [
+    "openblas-system",
+], default-features = false }
 polars = { version = "0.43", features = [
     "lazy",
     "dynamic_group_by",
