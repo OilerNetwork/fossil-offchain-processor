@@ -50,8 +50,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./crates/server
-          platforms: "linux/arm64"
+          context: .
+          platforms: "linux/amd64"
           push: true
           file: ./crates/server/Dockerfile
           tags: |
