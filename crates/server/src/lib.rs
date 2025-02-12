@@ -32,7 +32,8 @@ pub async fn create_app(pool: PgPool) -> Router {
     let cors_layer = CorsLayer::new()
         .allow_origin(AllowOrigin::list([
             "https://app.pitchlake.nethermind.dev".parse().unwrap(),
-            "https://pitchlake-front.vercel.app/".parse().unwrap(),
+            "https://app-rpc.pitchlake.nethermind.dev/".parse().unwrap(),
+            "https://app-ws.pitchlake.nethermind.dev/".parse().unwrap(),
         ]))
         .allow_methods(AllowMethods::any()) // Allow all methods (customize as needed)
         .allow_headers(AllowHeaders::any()) // Allow all headers
