@@ -53,6 +53,10 @@ pub async fn create_app(pool: PgPool) -> Router {
             "/job_status/:job_id",
             get(handlers::job_status::get_job_status),
         )
+        .route(
+            "/latest_block",
+            get(handlers::latest_block::get_latest_block_number),
+        )
         .layer(CorsLayer::permissive());
     //.layer(cors_layer.clone());
 

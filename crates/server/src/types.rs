@@ -52,3 +52,16 @@ pub enum GetJobStatusResponseEnum {
     Success(JobResponse),
     Error(ErrorResponse),
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LatestBlockResponse {
+    pub latest_block_number: i64,
+    pub block_timestamp: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum GetLatestBlockResponseEnum {
+    Success(LatestBlockResponse),
+    Error(ErrorResponse),
+}

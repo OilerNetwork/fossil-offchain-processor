@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use crate::{
-    types::{GetJobStatusResponseEnum, JobResponse, PitchLakeJobRequest},
+    types::{
+        GetJobStatusResponseEnum, GetLatestBlockResponseEnum, JobResponse, PitchLakeJobRequest,
+    },
     AppState,
 };
 use axum::{extract::State, http::StatusCode, Json};
@@ -10,7 +12,10 @@ use lazy_static::lazy_static;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use testcontainers::{clients::Cli, images::postgres::Postgres as PostgresImage, Container};
 
-use super::{get_pricing_data::get_pricing_data, job_status::get_job_status};
+use super::{
+    get_pricing_data::get_pricing_data, job_status::get_job_status,
+    latest_block::get_latest_block_number,
+};
 
 lazy_static! {
     static ref DOCKER: Cli = Cli::default();
@@ -49,6 +54,21 @@ impl TestContext {
         .execute(&pool)
         .await
         .expect("Failed to create job_requests table");
+
+        // Create the blockheaders table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS blockheaders (
+                number BIGINT PRIMARY KEY,
+                timestamp BIGINT,
+                base_fee_per_gas VARCHAR(66),
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("Failed to create blockheaders table");
 
         let db = Arc::new(DbConnection { pool: pool.clone() });
         let app_state = AppState { db };
@@ -104,5 +124,24 @@ impl TestContext {
         .execute(&self.db_pool)
         .await
         .expect("Failed to create job request with result");
+    }
+
+    pub async fn get_latest_block(&self) -> (StatusCode, Json<GetLatestBlockResponseEnum>) {
+        get_latest_block_number(State(self.app_state.clone())).await
+    }
+
+    pub async fn create_block(&self, block_number: i64, timestamp: i64, base_fee_per_gas: i64) {
+        sqlx::query!(
+            r#"
+            INSERT INTO blockheaders (number, timestamp, base_fee_per_gas)
+            VALUES ($1, $2, $3)
+            "#,
+            block_number,
+            timestamp,
+            base_fee_per_gas.to_string()
+        )
+        .execute(&self.db_pool)
+        .await
+        .expect("Failed to create block");
     }
 }
