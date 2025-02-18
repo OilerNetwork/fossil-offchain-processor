@@ -11,6 +11,7 @@ use starknet::{
 use starknet_crypto::Felt;
 
 pub const PITCH_LAKE_V1: &str = "0x50495443485f4c414b455f5631";
+pub const DEVNET_JUNO_CHAIN_ID: &str = "0x534e5f4a554e4f5f53455155454e434552";
 
 #[derive(Debug)]
 pub struct JobRequest {
@@ -47,6 +48,15 @@ impl FossilStarknetAccount {
             .expect("STARKNET_PRIVATE_KEY should be provided as env vars.");
         let account_address = env::var("STARKNET_ACCOUNT_ADDRESS")
             .expect("STARKNET_ACCOUNT_ADDRESS should be provided as env vars.");
+        let network = env::var("NETWORK").expect("NETWORK should be provided as env vars.");
+
+        let chain_id = match network.as_str() {
+            "MAINNET" => chain_id::MAINNET,
+            "SEPOLIA" => chain_id::SEPOLIA,
+            "DEVNET_KATANA" => chain_id::SEPOLIA,
+            "DEVNET_JUNO" => Felt::from_hex(DEVNET_JUNO_CHAIN_ID).unwrap(),
+            _ => panic!("Invalid network provided. Must be one of: MAINNET, SEPOLIA, DEVNET_KATANA, DEVNET_JUNO"),
+        };
 
         let provider = JsonRpcClient::new(HttpTransport::new(
             Url::parse(&rpc_url).expect("Invalid rpc url provided"),
@@ -61,7 +71,7 @@ impl FossilStarknetAccount {
                 provider,
                 signer,
                 Felt::from_hex(&account_address).expect("Invalid address provided"),
-                chain_id::SEPOLIA,
+                chain_id,
                 ExecutionEncoding::New,
             ),
         }
@@ -74,7 +84,6 @@ impl FossilStarknetAccount {
         result: &PitchLakeResult,
     ) -> Result<Felt> {
         let calldata = format_pitchlake_calldata(job_request, result);
-
         let tx = self
             .account
             .execute_v1(vec![Call {

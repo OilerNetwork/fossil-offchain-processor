@@ -1,3 +1,5 @@
+use dotenv::dotenv;
+use std::env;
 use std::sync::Arc;
 
 use axum::{
@@ -307,6 +309,15 @@ async fn fetch_headers(
     payload: &PitchLakeJobRequest,
 ) -> Option<(f64, f64, f64)> {
     tracing::debug!("Fetching block headers for calculations.");
+
+    dotenv().ok();
+    let use_mock_pricing_data = env::var("USE_MOCK_PRICING_DATA")
+        .expect("USE_MOCK_PRICING_DATA should be provided as env vars.");
+
+    if use_mock_pricing_data.to_lowercase() == "true" {
+        tracing::info!("Using mock pricing data");
+        return Some((14732102267.474916, 440.0, 2597499408.638207));
+    }
 
     let (twap_headers, volatility_headers, reserve_price_headers) = join!(
         get_block_headers_by_time_range(&db.pool, payload.params.twap.0, payload.params.twap.1),

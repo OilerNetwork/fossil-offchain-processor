@@ -330,3 +330,19 @@ pub async fn update_job_result(
 
     Ok(())
 }
+
+pub async fn latest_block_number(pool: &PgPool) -> Result<Option<BlockHeaderSubset>, Error> {
+    let block = sqlx::query_as!(
+        BlockHeaderSubset,
+        r#"
+        SELECT number, timestamp, base_fee_per_gas
+        FROM blockheaders 
+        ORDER BY number DESC 
+        LIMIT 1
+        "#
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(block)
+}
