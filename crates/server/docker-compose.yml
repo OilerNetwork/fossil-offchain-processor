@@ -14,6 +14,7 @@ services:
       - ETH_RPC_URL=${ETH_RPC_URL}
       - USE_MOCK_PRICING_DATA=${USE_MOCK_PRICING_DATA}
       - NETWORK=${NETWORK}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
     depends_on:
       migration:
         condition: service_completed_successfully
