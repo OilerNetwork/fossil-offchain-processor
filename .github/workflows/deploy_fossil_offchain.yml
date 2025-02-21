@@ -12,6 +12,7 @@ env:
   ECS_CLUSTER: fossil-offchain-processor-ecs-cluster
   CONTAINER_NAME: fossil-offchian-app
   TASK_NAME: fossil-offchain-processor-app-ecs
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
 permissions:
   id-token: write
