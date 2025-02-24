@@ -1,0 +1,22 @@
+# Use the official Rust image.
+FROM rust:latest
+
+# Set the working directory inside the container.
+WORKDIR /usr/src/request-manager
+
+# Copy the submodule Rust project code to the container's working directory.
+COPY ./crates/proof-generator ../proof-generator
+COPY ./crates/request-manager .
+
+# Build dependencies first - useful for caching.
+RUN cargo fetch
+
+# Build your project.
+RUN cargo build --release
+
+# Expose the port that the application runs on
+EXPOSE 8000
+
+# Command to run the executable using `cargo run`.
+# Note: `cargo run` compiles the debug version, adjust as needed.
+CMD ["cargo", "run", "--release"]

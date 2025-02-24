@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  eth-dispatcher:
+    build:
+      context: ./crates/eth-dispatcher  # Set the Docker context to the eth-dispatcher directory
+      dockerfile: Dockerfile  # Specify the custom Dockerfile name
+    environment:
+      LOCAL_ETH_RPC_URL: eth_rpc_endpoint
+      ACCOUNT_PRIVATE_KEY: account_private_key_here
+      L1_MESSAGE_SENDER_ADDRESS: 0xL1MessageSenderAddressHere
+    networks:
+      - fossil
+
+  proof-generator:
+    build:
+      context: ./crates/proof-generator
+      dockerfile: Dockerfile
+    environment:
+      ETH_RPC: Eth_RPC_endpoint
+    networks:
+      - fossil
+
+  request-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile.request-manager
+    ports:
+      - "8000:8000"
+    networks:
+      - fossil
+
+  # starknet-handler:
+  #   build:
+  #     context: .  # Set the Docker context to the current directory
+  #     dockerfile: Dockerfile.starknet-handler # Specify the custom Dockerfile name
+  #   networks:
+  #     - fossil
+
+networks:
+  fossil:
+    driver: bridge
