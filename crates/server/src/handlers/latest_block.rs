@@ -14,26 +14,23 @@ pub async fn get_latest_block_number(
     match latest_block_number(&state.db.pool).await {
         Ok(Some(block_header)) => {
             tracing::info!("Latest block found: {:?}", block_header);
-            match block_header.timestamp {
-                Some(timestamp) => {
-                    tracing::info!("Block timestamp found: {}", timestamp);
-                    (
-                        StatusCode::OK,
-                        Json(GetLatestBlockResponseEnum::Success(LatestBlockResponse {
-                            latest_block_number: block_header.number,
-                            block_timestamp: timestamp,
-                        })),
-                    )
-                }
-                None => {
-                    tracing::error!("Block timestamp is missing");
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(GetLatestBlockResponseEnum::Error(ErrorResponse {
-                            error: "Block timestamp is missing".to_string(),
-                        })),
-                    )
-                }
+            if let Some(timestamp) = block_header.timestamp {
+                tracing::info!("Block timestamp found: {}", timestamp);
+                (
+                    StatusCode::OK,
+                    Json(GetLatestBlockResponseEnum::Success(LatestBlockResponse {
+                        latest_block_number: block_header.number,
+                        block_timestamp: timestamp,
+                    })),
+                )
+            } else {
+                tracing::error!("Block timestamp is missing");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(GetLatestBlockResponseEnum::Error(ErrorResponse {
+                        error: "Block timestamp is missing".to_string(),
+                    })),
+                )
             }
         }
         Ok(None) => {

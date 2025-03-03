@@ -1,4 +1,4 @@
-use eth_rlp_verify::block_header::BlockHeader as EthBlockHeader;
+use eth_rlp_types::BlockHeader as EthBlockHeader;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -44,7 +44,7 @@ pub struct ApiKey {
     pub name: Option<String>,
 }
 
-#[derive(sqlx::Type, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(sqlx::Type, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[sqlx(type_name = "TEXT")]
 pub enum JobStatus {
     Pending,
@@ -55,9 +55,9 @@ pub enum JobStatus {
 impl fmt::Display for JobStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JobStatus::Pending => write!(f, "Pending"),
-            JobStatus::Completed => write!(f, "Completed"),
-            JobStatus::Failed => write!(f, "Failed"),
+            Self::Pending => write!(f, "Pending"),
+            Self::Completed => write!(f, "Completed"),
+            Self::Failed => write!(f, "Failed"),
         }
     }
 }

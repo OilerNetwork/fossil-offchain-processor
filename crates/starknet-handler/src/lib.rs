@@ -1,7 +1,9 @@
-use std::env;
+use std::{env, sync::Arc, time::Duration};
 
+pub mod resilience;
 use dotenv::dotenv;
-use eyre::Result;
+use eyre::{eyre, Result};
+use resilience::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
 use starknet::{
     accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
     core::{chain_id, types::Call, types::U256, utils::get_selector_from_name},
@@ -9,6 +11,7 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use starknet_crypto::Felt;
+use tokio::time::sleep;
 
 pub const PITCH_LAKE_V1: &str = "0x50495443485f4c414b455f5631";
 pub const DEVNET_JUNO_CHAIN_ID: &str = "0x534e5f4a554e4f5f53455155454e434552";
@@ -30,51 +33,71 @@ pub struct PitchLakeResult {
 #[derive(Debug)]
 pub struct FossilStarknetAccount {
     pub account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
+    circuit_breaker: Arc<CircuitBreaker>,
 }
 
 impl Default for FossilStarknetAccount {
     fn default() -> Self {
-        Self::new()
+        match Self::new() {
+            Ok(account) => account,
+            Err(e) => {
+                tracing::error!("Error creating default FossilStarknetAccount: {}", e);
+                std::process::exit(1); // Exit the program on error
+            }
+        }
     }
 }
 
 impl FossilStarknetAccount {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         dotenv().ok();
 
-        let rpc_url =
-            env::var("STARKNET_RPC_URL").expect("STARKNET_RPC_URL should be provided as env vars.");
+        let rpc_url = env::var("STARKNET_RPC_URL")
+            .map_err(|_| eyre!("STARKNET_RPC_URL should be provided as env vars"))?;
+
         let account_private_key = env::var("STARKNET_PRIVATE_KEY")
-            .expect("STARKNET_PRIVATE_KEY should be provided as env vars.");
+            .map_err(|_| eyre!("STARKNET_PRIVATE_KEY should be provided as env vars"))?;
+
         let account_address = env::var("STARKNET_ACCOUNT_ADDRESS")
-            .expect("STARKNET_ACCOUNT_ADDRESS should be provided as env vars.");
-        let network = env::var("NETWORK").expect("NETWORK should be provided as env vars.");
+            .map_err(|_| eyre!("STARKNET_ACCOUNT_ADDRESS should be provided as env vars"))?;
+
+        let network =
+            env::var("NETWORK").map_err(|_| eyre!("NETWORK should be provided as env vars"))?;
 
         let chain_id = match network.as_str() {
             "MAINNET" => chain_id::MAINNET,
             "SEPOLIA" => chain_id::SEPOLIA,
-            "DEVNET_KATANA" => chain_id::SEPOLIA,
-            "DEVNET_JUNO" => Felt::from_hex(DEVNET_JUNO_CHAIN_ID).unwrap(),
+            "DEVNET_KATANA" => Felt::from_hex("0x4b4154414e41")?,
+            "DEVNET_JUNO" => Felt::from_hex(DEVNET_JUNO_CHAIN_ID)?,
             _ => panic!("Invalid network provided. Must be one of: MAINNET, SEPOLIA, DEVNET_KATANA, DEVNET_JUNO"),
         };
 
-        let provider = JsonRpcClient::new(HttpTransport::new(
-            Url::parse(&rpc_url).expect("Invalid rpc url provided"),
-        ));
+        let url =
+            Url::parse(&rpc_url).unwrap_or_else(|e| panic!("Invalid RPC URL provided: {}", e));
 
-        let signer = LocalWallet::from(SigningKey::from_secret_scalar(
-            Felt::from_hex(&account_private_key).expect("Invalid private key provided"),
-        ));
+        let provider = JsonRpcClient::new(HttpTransport::new(url));
 
-        Self {
+        let private_key = Felt::from_hex(&account_private_key)?;
+
+        let signer = LocalWallet::from(SigningKey::from_secret_scalar(private_key));
+
+        let address = Felt::from_hex(&account_address)?;
+
+        let circuit_breaker = Arc::new(CircuitBreaker::new(CircuitBreakerConfig {
+            failure_threshold: 5,
+            reset_timeout: Duration::from_secs(60),
+        }));
+
+        Ok(Self {
             account: SingleOwnerAccount::new(
                 provider,
                 signer,
-                Felt::from_hex(&account_address).expect("Invalid address provided"),
+                address,
                 chain_id,
                 ExecutionEncoding::New,
             ),
-        }
+            circuit_breaker,
+        })
     }
 
     pub async fn callback_to_contract(
@@ -83,18 +106,96 @@ impl FossilStarknetAccount {
         job_request: &JobRequest,
         result: &PitchLakeResult,
     ) -> Result<Felt> {
-        let calldata = format_pitchlake_calldata(job_request, result);
-        let tx = self
-            .account
-            .execute_v1(vec![Call {
-                selector: get_selector_from_name("fossil_callback").unwrap(),
-                calldata,
-                to: client_address,
-            }])
-            .send()
-            .await?;
+        const MAX_ATTEMPTS: u32 = 3;
+        const BASE_DELAY_MS: u64 = 1000; // 1 second initial delay
 
-        Ok(tx.transaction_hash)
+        // Create a context string for logging
+        let context = format!(
+            "client_address={:#064x}, vault_address={:#064x}, timestamp={}, twap={}, volatility={}, reserve_price={}",
+            client_address,
+            job_request.vault_address,
+            job_request.timestamp,
+            result.twap,
+            result.volatility,
+            result.reserve_price
+        );
+
+        // Check if circuit breaker is open
+        if !self.circuit_breaker.allow_request().await {
+            tracing::warn!(
+                "Circuit breaker is open, skipping Starknet callback. {}",
+                context
+            );
+            return Err(eyre!(
+                "Circuit breaker is open, service temporarily unavailable"
+            ));
+        }
+
+        tracing::info!("Preparing Starknet callback: {}", context);
+
+        let calldata = format_pitchlake_calldata(job_request, result);
+        let selector = get_selector_from_name("fossil_callback")
+            .map_err(|e| eyre!("Failed to get selector for fossil_callback: {}", e))?;
+
+        let call = Call {
+            selector,
+            calldata,
+            to: client_address,
+        };
+
+        let mut last_error = None;
+
+        for attempt in 1..=MAX_ATTEMPTS {
+            tracing::info!(
+                "Attempt {} of {} to send transaction to Starknet: {}",
+                attempt,
+                MAX_ATTEMPTS,
+                context
+            );
+
+            match self.account.execute_v3(vec![call.clone()]).send().await {
+                Ok(tx) => {
+                    tracing::info!(
+                        "Transaction sent successfully on attempt {}: tx_hash={:#064x}, {}",
+                        attempt,
+                        tx.transaction_hash,
+                        context
+                    );
+                    // Record success in circuit breaker
+                    self.circuit_breaker.on_success().await;
+                    return Ok(tx.transaction_hash);
+                }
+                Err(e) => {
+                    let error_msg =
+                        format!("Failed to send transaction on attempt {}: {}", attempt, e);
+                    tracing::warn!("{}. Context: {}", error_msg, context);
+                    last_error = Some(eyre!("{}: {}", error_msg, context));
+
+                    if attempt < MAX_ATTEMPTS {
+                        // Exponential backoff: delay = base_delay * 2^(attempt-1)
+                        let delay_ms = BASE_DELAY_MS * (1 << (attempt - 1));
+                        tracing::info!("Retrying in {} ms. Context: {}", delay_ms, context);
+                        sleep(Duration::from_millis(delay_ms)).await;
+                    }
+                }
+            }
+        }
+
+        // Record failure in circuit breaker
+        self.circuit_breaker.on_failure().await;
+
+        Err(last_error.unwrap_or_else(|| {
+            eyre!(
+                "Failed to send transaction after {} attempts. Context: {}",
+                MAX_ATTEMPTS,
+                context
+            )
+        }))
+    }
+
+    // Add a method to manually reset the circuit breaker
+    pub async fn reset_circuit_breaker(&self) {
+        self.circuit_breaker.reset().await;
     }
 }
 

@@ -32,7 +32,7 @@ pub struct JobResponse {
 }
 
 impl JobResponse {
-    pub fn new(job_id: String, message: Option<String>, status: Option<JobStatus>) -> Self {
+    pub const fn new(job_id: String, message: Option<String>, status: Option<JobStatus>) -> Self {
         Self {
             job_id,
             message,
