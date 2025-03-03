@@ -242,14 +242,14 @@ async fn process_job(
     starknet_account: FossilStarknetAccount,
 ) {
     let context = format!(
-        "job_id={}, identifiers=[{}], twap=({},{}), volatility=({},{}), reserve_price=({},{}), client_address={}, vault_address={}",
+        "job_id={}, identifiers=[{}], twap=({},{}), volatility=({},{}), reserve_price=({},{}), client_address={:#064x}, vault_address={:#064x}",
         job_id,
         payload.identifiers.join(","),
         payload.params.twap.0, payload.params.twap.1,
         payload.params.volatility.0, payload.params.volatility.1,
         payload.params.reserve_price.0, payload.params.reserve_price.1,
-        format!("0x{:064x}", payload.client_info.client_address),
-        format!("0x{:064x}", payload.client_info.vault_address),
+        payload.client_info.client_address,
+        payload.client_info.vault_address,
     );
 
     tracing::info!("Starting job processing. {}", context);
@@ -327,12 +327,7 @@ async fn process_job(
                 .callback_to_contract(payload.client_info.client_address, &job_request, &result)
                 .await
             {
-                Ok(tx_hash) => {
-                    tracing::info!(
-                        "Starknet callback successful. Transaction hash: {}. {}",
-                        tx_hash,
-                        context
-                    );
+                Ok(_) => {
                     tracing::info!("Job processing finished successfully. {}", context);
                     true
                 }

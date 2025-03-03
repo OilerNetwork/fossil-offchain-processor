@@ -1,7 +1,9 @@
-use std::{env, time::Duration};
+use std::{env, sync::Arc, time::Duration};
 
+pub mod resilience;
 use dotenv::dotenv;
 use eyre::{eyre, Result};
+use resilience::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig};
 use starknet::{
     accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
     core::{chain_id, types::Call, types::U256, utils::get_selector_from_name},
@@ -31,6 +33,7 @@ pub struct PitchLakeResult {
 #[derive(Debug)]
 pub struct FossilStarknetAccount {
     pub account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
+    circuit_breaker: Arc<CircuitBreaker>,
 }
 
 impl Default for FossilStarknetAccount {
@@ -80,6 +83,11 @@ impl FossilStarknetAccount {
 
         let address = Felt::from_hex(&account_address)?;
 
+        let circuit_breaker = Arc::new(CircuitBreaker::new(CircuitBreakerConfig {
+            failure_threshold: 5,
+            reset_timeout: Duration::from_secs(60),
+        }));
+
         Ok(Self {
             account: SingleOwnerAccount::new(
                 provider,
@@ -88,6 +96,7 @@ impl FossilStarknetAccount {
                 chain_id,
                 ExecutionEncoding::New,
             ),
+            circuit_breaker,
         })
     }
 
@@ -110,6 +119,17 @@ impl FossilStarknetAccount {
             result.volatility,
             result.reserve_price
         );
+
+        // Check if circuit breaker is open
+        if !self.circuit_breaker.allow_request().await {
+            tracing::warn!(
+                "Circuit breaker is open, skipping Starknet callback. {}",
+                context
+            );
+            return Err(eyre!(
+                "Circuit breaker is open, service temporarily unavailable"
+            ));
+        }
 
         tracing::info!("Preparing Starknet callback: {}", context);
 
@@ -141,6 +161,8 @@ impl FossilStarknetAccount {
                         tx.transaction_hash,
                         context
                     );
+                    // Record success in circuit breaker
+                    self.circuit_breaker.on_success().await;
                     return Ok(tx.transaction_hash);
                 }
                 Err(e) => {
@@ -159,6 +181,9 @@ impl FossilStarknetAccount {
             }
         }
 
+        // Record failure in circuit breaker
+        self.circuit_breaker.on_failure().await;
+
         Err(last_error.unwrap_or_else(|| {
             eyre!(
                 "Failed to send transaction after {} attempts. Context: {}",
@@ -166,6 +191,11 @@ impl FossilStarknetAccount {
                 context
             )
         }))
+    }
+
+    // Add a method to manually reset the circuit breaker
+    pub async fn reset_circuit_breaker(&self) {
+        self.circuit_breaker.reset().await;
     }
 }
 
