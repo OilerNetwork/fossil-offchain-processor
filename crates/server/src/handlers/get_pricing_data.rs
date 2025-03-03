@@ -35,8 +35,9 @@ pub async fn get_pricing_data(
 ) -> (StatusCode, Json<JobResponse>) {
     let identifiers = payload.identifiers.join(",");
     let context = format!(
-        "identifiers=[{}], twap=({},{}), volatility=({},{}), reserve_price=({},{}), client_address={}, vault_address={}",
+        "identifiers=[{}], timestamp={}, twap-range=({},{}), volatility-range=({},{}), reserve_price-range=({},{}), client_address={:#064x}, vault_address={:#064x}",
         identifiers,
+        payload.client_info.timestamp,
         payload.params.twap.0, payload.params.twap.1,
         payload.params.volatility.0, payload.params.volatility.1,
         payload.params.reserve_price.0, payload.params.reserve_price.1,
@@ -247,8 +248,8 @@ async fn process_job(
         payload.params.twap.0, payload.params.twap.1,
         payload.params.volatility.0, payload.params.volatility.1,
         payload.params.reserve_price.0, payload.params.reserve_price.1,
-        payload.client_info.client_address,
-        payload.client_info.vault_address
+        format!("0x{:064x}", payload.client_info.client_address),
+        format!("0x{:064x}", payload.client_info.vault_address),
     );
 
     tracing::info!("Starting job processing. {}", context);

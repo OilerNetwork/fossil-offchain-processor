@@ -102,7 +102,7 @@ impl FossilStarknetAccount {
 
         // Create a context string for logging
         let context = format!(
-            "client_address={}, vault_address={}, timestamp={}, twap={}, volatility={}, reserve_price={}",
+            "client_address={:#064x}, vault_address={:#064x}, timestamp={}, twap={}, volatility={}, reserve_price={}",
             client_address,
             job_request.vault_address,
             job_request.timestamp,
@@ -136,7 +136,7 @@ impl FossilStarknetAccount {
             match self.account.execute_v3(vec![call.clone()]).send().await {
                 Ok(tx) => {
                     tracing::info!(
-                        "Transaction sent successfully on attempt {}: tx_hash={}, {}",
+                        "Transaction sent successfully on attempt {}: tx_hash={:#064x}, {}",
                         attempt,
                         tx.transaction_hash,
                         context
