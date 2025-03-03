@@ -1,3 +1,6 @@
+#![deny(unused_crate_dependencies)]
+use tracing_subscriber as _;
+
 pub mod handlers;
 pub mod middlewares;
 pub mod pricing_data;

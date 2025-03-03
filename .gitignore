@@ -8,3 +8,5 @@ crates/mmr-accumulator/db-instances/
 zkvm/.bonsai-env
 
 zkvm/.bonsay-env
+
+changes.diff

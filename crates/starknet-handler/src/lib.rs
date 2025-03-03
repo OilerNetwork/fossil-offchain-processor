@@ -86,7 +86,7 @@ impl FossilStarknetAccount {
         let calldata = format_pitchlake_calldata(job_request, result);
         let tx = self
             .account
-            .execute_v1(vec![Call {
+            .execute_v3(vec![Call {
                 selector: get_selector_from_name("fossil_callback").unwrap(),
                 calldata,
                 to: client_address,
