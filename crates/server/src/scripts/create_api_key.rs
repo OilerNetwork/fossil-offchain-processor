@@ -13,9 +13,12 @@ async fn main() -> Result<()> {
 
     let db = DbConnection::new().await?;
 
-    let name = env::args()
-        .nth(1)
-        .expect("Give a name or tag to your api key");
+    let name = match env::args().nth(1) {
+        Some(name) => name,
+        None => {
+            return Err(eyre::eyre!("Missing required argument: name"));
+        }
+    };
 
     // Generate a new API key (using UUID v4 for this example)
     let api_key = Uuid::new_v4().to_string();

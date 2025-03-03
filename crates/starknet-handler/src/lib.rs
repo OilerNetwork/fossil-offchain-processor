@@ -1,7 +1,7 @@
 use std::env;
 
 use dotenv::dotenv;
-use eyre::Result;
+use eyre::{eyre, Result};
 use starknet::{
     accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
     core::{chain_id, types::Call, types::U256, utils::get_selector_from_name},
@@ -34,47 +34,60 @@ pub struct FossilStarknetAccount {
 
 impl Default for FossilStarknetAccount {
     fn default() -> Self {
-        Self::new()
+        match Self::new() {
+            Ok(account) => account,
+            Err(e) => {
+                tracing::error!("Error creating default FossilStarknetAccount: {}", e);
+                std::process::exit(1); // Exit the program on error
+            }
+        }
     }
 }
 
 impl FossilStarknetAccount {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         dotenv().ok();
 
-        let rpc_url =
-            env::var("STARKNET_RPC_URL").expect("STARKNET_RPC_URL should be provided as env vars.");
+        let rpc_url = env::var("STARKNET_RPC_URL")
+            .map_err(|_| eyre!("STARKNET_RPC_URL should be provided as env vars"))?;
+
         let account_private_key = env::var("STARKNET_PRIVATE_KEY")
-            .expect("STARKNET_PRIVATE_KEY should be provided as env vars.");
+            .map_err(|_| eyre!("STARKNET_PRIVATE_KEY should be provided as env vars"))?;
+
         let account_address = env::var("STARKNET_ACCOUNT_ADDRESS")
-            .expect("STARKNET_ACCOUNT_ADDRESS should be provided as env vars.");
-        let network = env::var("NETWORK").expect("NETWORK should be provided as env vars.");
+            .map_err(|_| eyre!("STARKNET_ACCOUNT_ADDRESS should be provided as env vars"))?;
+
+        let network =
+            env::var("NETWORK").map_err(|_| eyre!("NETWORK should be provided as env vars"))?;
 
         let chain_id = match network.as_str() {
             "MAINNET" => chain_id::MAINNET,
             "SEPOLIA" => chain_id::SEPOLIA,
-            "DEVNET_KATANA" => chain_id::SEPOLIA,
-            "DEVNET_JUNO" => Felt::from_hex(DEVNET_JUNO_CHAIN_ID).unwrap(),
+            "DEVNET_KATANA" => Felt::from_hex("0x4b4154414e41")?,
+            "DEVNET_JUNO" => Felt::from_hex(DEVNET_JUNO_CHAIN_ID)?,
             _ => panic!("Invalid network provided. Must be one of: MAINNET, SEPOLIA, DEVNET_KATANA, DEVNET_JUNO"),
         };
 
-        let provider = JsonRpcClient::new(HttpTransport::new(
-            Url::parse(&rpc_url).expect("Invalid rpc url provided"),
-        ));
+        let url =
+            Url::parse(&rpc_url).unwrap_or_else(|e| panic!("Invalid RPC URL provided: {}", e));
 
-        let signer = LocalWallet::from(SigningKey::from_secret_scalar(
-            Felt::from_hex(&account_private_key).expect("Invalid private key provided"),
-        ));
+        let provider = JsonRpcClient::new(HttpTransport::new(url));
 
-        Self {
+        let private_key = Felt::from_hex(&account_private_key)?;
+
+        let signer = LocalWallet::from(SigningKey::from_secret_scalar(private_key));
+
+        let address = Felt::from_hex(&account_address)?;
+
+        Ok(Self {
             account: SingleOwnerAccount::new(
                 provider,
                 signer,
-                Felt::from_hex(&account_address).expect("Invalid address provided"),
+                address,
                 chain_id,
                 ExecutionEncoding::New,
             ),
-        }
+        })
     }
 
     pub async fn callback_to_contract(
@@ -84,15 +97,20 @@ impl FossilStarknetAccount {
         result: &PitchLakeResult,
     ) -> Result<Felt> {
         let calldata = format_pitchlake_calldata(job_request, result);
+
+        let selector = get_selector_from_name("fossil_callback")
+            .map_err(|e| eyre!("Failed to get selector: {}", e))?;
+
         let tx = self
             .account
             .execute_v3(vec![Call {
-                selector: get_selector_from_name("fossil_callback").unwrap(),
+                selector,
                 calldata,
                 to: client_address,
             }])
             .send()
-            .await?;
+            .await
+            .map_err(|e| eyre!("Failed to send transaction: {}", e))?;
 
         Ok(tx.transaction_hash)
     }

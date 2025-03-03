@@ -4600,6 +4600,7 @@ dependencies = [
  "starknet",
  "starknet-crypto",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

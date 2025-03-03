@@ -87,7 +87,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
         remove_seasonality(&mut df, period_start_date_timestamp)?;
     df.with_column(Series::new(
         "de_seasonalized_detrended_log_base_fee".into(),
-        de_seasonalised_detrended_log_base_fee.clone().to_vec(),
+        de_seasonalised_detrended_log_base_fee.to_vec(),
     ))?;
 
     let (de_seasonalized_detrended_simulated_prices, _params) = simulate_prices(
@@ -102,7 +102,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 
     let c = season_matrix(sim_hourly_times);
     let season = c.dot(&season_param);
-    let season_reshaped = season.into_shape((n_periods, 1)).unwrap();
+    let season_reshaped = season.into_shape((n_periods, 1))?;
 
     let detrended_simulated_prices = &de_seasonalized_detrended_simulated_prices + &season_reshaped;
 
@@ -124,13 +124,15 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
     let dt = 1.0 / 24.0;
 
     let mut stochastic_trend = Array2::<f64>::zeros((n_periods, num_paths));
-    let normal = Normal::new(0.0, sigma * (f64::sqrt(dt))).unwrap();
+    let normal = Normal::new(0.0, sigma * (f64::sqrt(dt)))?;
     let mut rng = thread_rng();
     for i in 0..num_paths {
         let random_shocks: Vec<f64> = (0..n_periods).map(|_| normal.sample(&mut rng)).collect();
         let mut cumsum = 0.0;
         for j in 0..n_periods {
-            cumsum += (mu - 0.5 * sigma.powi(2)) * dt + random_shocks[j];
+            cumsum += 0.5f64
+                .mul_add(-sigma.powi(2), mu)
+                .mul_add(dt, random_shocks[j]);
             stochastic_trend[[j, i]] = cumsum;
         }
     }
@@ -138,7 +140,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
     let coeffs = trend_model.params();
     let final_trend_value = {
         let x = (df.height() - 1) as f64;
-        coeffs[0] * x + coeffs[1]
+        coeffs[0].mul_add(x, coeffs[1])
     };
 
     let mut simulated_log_prices = Array2::<f64>::zeros((n_periods, num_paths));
@@ -155,7 +157,7 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
     let final_prices_twap = simulated_prices
         .slice(s![twap_start.., ..])
         .mean_axis(Axis(0))
-        .unwrap();
+        .ok_or_else(|| eyre::eyre!("Failed to calculate mean axis"))?;
 
     let payoffs = final_prices_twap.mapv(|price| {
         let capped_price = (1.0 + cap_level) * strike;
@@ -168,22 +170,22 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
     Ok(reserve_price)
 }
 
-/// Removes seasonality from the detrended log base fee and adds relevant columns to the DataFrame.
+/// Removes seasonality from the detrended log base fee and adds relevant columns to the `DataFrame`.
 ///
 /// This function creates a time series, computes the seasonal component, and removes it from the
-/// detrended log base fee. It adds new columns to the DataFrame for the time series and the
+/// detrended log base fee. It adds new columns to the `DataFrame` for the time series and the
 /// de-seasonalized detrended log base fee.
 ///
 /// # Arguments
 ///
-/// * `df` - A mutable reference to the DataFrame containing the data.
+/// * `df` - A mutable reference to the `DataFrame` containing the data.
 /// * `start_date_timestamp` - The timestamp of the start date.
 ///
 /// # Returns
 ///
 /// A Result containing a tuple with two elements:
-/// * The de-seasonalized detrended log base fee as an Array1<f64>
-/// * The seasonal parameters as an Array1<f64>
+/// * The de-seasonalized detrended log base fee as an `Array1<f64>`
+/// * The seasonal parameters as an `Array1<f64>`
 ///
 /// Returns an Error if any operation fails.
 fn remove_seasonality(
@@ -199,9 +201,10 @@ fn remove_seasonality(
         .into_iter()
         .map(|opt_date| {
             opt_date.map_or(0.0, |date| {
-                (DateTime::from_timestamp(date / 1000, 0).unwrap() - start_date).num_seconds()
-                    as f64
-                    / 3600.0
+                match DateTime::from_timestamp(date / 1000, 0) {
+                    Some(dt) => ((dt - start_date).num_seconds() as f64) / 3600.0,
+                    None => 0.0, // Default value if timestamp conversion fails
+                }
             })
         })
         .collect();
@@ -289,7 +292,7 @@ fn simulate_prices(
                 [de_seasonalised_detrended_log_base_fee.len() - 1],
         ));
 
-    let normal = Normal::new(0.0, 1.0).unwrap();
+    let normal = Normal::new(0.0, 1.0)?;
     let n1 = Array2::from_shape_fn((n_periods, num_paths), |_| normal.sample(&mut rng));
     let n2 = Array2::from_shape_fn((n_periods, num_paths), |_| normal.sample(&mut rng));
 
@@ -300,7 +303,7 @@ fn simulate_prices(
         let current_j = j.slice(s![i, ..]);
 
         let new_prices = &(alpha * dt
-            + (1.0 - kappa * dt) * &prev_prices
+            + kappa.mul_add(-dt, 1.0) * &prev_prices
             + sigma * dt.sqrt() * &current_n1
             + &current_j * (mu_j + sigma_j * &current_n2));
 
@@ -316,7 +319,7 @@ fn simulate_prices(
 ///
 /// # Arguments
 ///
-/// * `df` - A reference to a DataFrame containing the log base fee data.
+/// * `df` - A reference to a `DataFrame` containing the log base fee data.
 ///
 /// # Returns
 ///
@@ -327,13 +330,13 @@ fn simulate_prices(
 /// # Errors
 ///
 /// Returns an Error if:
-/// * The 'log_base_fee' column cannot be accessed or converted to f64.
+/// * The `log_base_fee` column cannot be accessed or converted to `f64`.
 /// * The linear regression model fails to fit.
 fn discover_trend(df: &DataFrame) -> Result<(FittedLinearRegression<f64>, Vec<f64>)> {
     let time_index: Vec<f64> = (0..df.height() as i64).map(|i| i as f64).collect();
 
     let ones = Array::<f64, Ix1>::ones(df.height());
-    let x = stack![Axis(1), Array::from(time_index.clone()), ones];
+    let x = stack![Axis(1), Array::from(time_index), ones];
 
     let y = Array1::from(
         df["log_base_fee"]
@@ -463,9 +466,9 @@ fn standard_deviation(returns: Vec<f64>) -> f64 {
 /// # Arguments
 ///
 /// * `params` - A slice of f64 values representing the model parameters:
-///   [a, phi, mu_j, sigma_sq, sigma_sq_j, lambda]
-/// * `pt` - An Array1<f64> of observed prices at time t
-/// * `pt_1` - An Array1<f64> of observed prices at time t-1
+///   [a, phi, `mu_j`, `sigma_sq`, `sigma_sq_j`, `lambda`]
+/// * `pt` - An `Array1<f64>` of observed prices at time t
+/// * `pt_1` - An `Array1<f64>` of observed prices at time t-1
 ///
 /// # Returns
 ///
@@ -500,9 +503,9 @@ fn mrjpdf(params: &[f64], pt: &Array1<f64>, pt_1: &Array1<f64>) -> Array1<f64> {
 /// # Arguments
 ///
 /// * `params` - A slice of f64 values representing the model parameters:
-///   [a, phi, mu_j, sigma_sq, sigma_sq_j, lambda]
-/// * `pt` - An Array1<f64> of observed prices at time t
-/// * `pt_1` - An Array1<f64> of observed prices at time t-1
+///   [`a`, `phi`, `mu_j`, `sigma_sq`, `sigma_sq_j`, `lambda`]
+/// * `pt` - An `Array1<f64>` of observed prices at time t
+/// * `pt_1` - An `Array1<f64>` of observed prices at time t-1
 ///
 /// # Returns
 ///
@@ -517,25 +520,25 @@ fn neg_log_likelihood(params: &[f64], pt: &Array1<f64>, pt_1: &Array1<f64>) -> f
     -pdf_vals.mapv(|x| (x + 1e-10).ln()).sum()
 }
 
-/// Adds a Time-Weighted Average Price (TWAP) column to the DataFrame.
+/// Adds a Time-Weighted Average Price (TWAP) column to the `DataFrame`.
 ///
-/// This function calculates the 7-day TWAP for the 'base_fee' column and adds it as a new column
-/// named 'TWAP_7d' to the input DataFrame.
+/// This function calculates the 7-day TWAP for the `base_fee` column and adds it as a new column
+/// named `TWAP_7d` to the input `DataFrame`.
 ///
 /// # Arguments
 ///
-/// * `df` - The input DataFrame containing the 'base_fee' column.
+/// * `df` - The input `DataFrame` containing the `base_fee` column.
 ///
 /// # Returns
 ///
-/// A `Result` containing the DataFrame with the added 'TWAP_7d' column, or an `Error` if the
+/// A `Result` containing the `DataFrame` with the added `TWAP_7d` column, or an `Error` if the
 /// operation fails.
 ///
 /// # Errors
 ///
 /// This function will return an error if:
 /// * The rolling mean calculation fails.
-/// * The final collection of the lazy DataFrame fails.
+/// * The final collection of the lazy `DataFrame` fails.
 ///
 fn add_twap_7d(df: DataFrame) -> Result<DataFrame> {
     let required_window_size = 24 * 7;
@@ -568,24 +571,24 @@ fn add_twap_7d(df: DataFrame) -> Result<DataFrame> {
     Ok(df.fill_null(FillNullStrategy::Backward(None))?)
 }
 
-/// Groups the DataFrame by 1-hour intervals and aggregates specified columns.
+/// Groups the `DataFrame` by 1-hour intervals and aggregates specified columns.
 ///
-/// This function takes a DataFrame and groups it by 1-hour intervals based on the 'date' column.
-/// It then calculates the mean values for 'base_fee' within each interval.
+/// This function takes a `DataFrame` and groups it by 1-hour intervals based on the `date` column.
+/// It then calculates the mean values for `base_fee` within each interval.
 ///
 /// # Arguments
 ///
-/// * `df` - The input DataFrame to be grouped and aggregated.
+/// * `df` - The input `DataFrame` to be grouped and aggregated.
 ///
 /// # Returns
 ///
-/// A `Result` containing the grouped and aggregated DataFrame, or an `Error` if the operation fails.
+/// A `Result` containing the grouped and aggregated `DataFrame`, or an `Error` if the operation fails.
 ///
 /// # Errors
 ///
 /// This function will return an error if:
 /// * The grouping or aggregation operations fail.
-/// * The final collection of the lazy DataFrame fails.
+/// * The final collection of the lazy `DataFrame` fails.
 ///
 // Instead of grouping, just sort the data
 fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
@@ -610,25 +613,25 @@ fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
     Ok(df)
 }
 
-/// Replaces the 'timestamp' column with a 'date' column in a DataFrame.
+/// Replaces the `timestamp` column with a `date` column in a `DataFrame`.
 ///
-/// This function takes a DataFrame with a 'timestamp' column, converts the timestamps
-/// to milliseconds, casts them to datetime, and replaces the 'timestamp' column with
-/// a new 'date' column.
+/// This function takes a `DataFrame` with a `timestamp` column, converts the timestamps
+/// to milliseconds, casts them to datetime, and replaces the `timestamp` column with
+/// a new `date` column.
 ///
 /// # Arguments
 ///
-/// * `df` - A mutable reference to the input DataFrame.
+/// * `df` - A mutable reference to the input `DataFrame`.
 ///
 /// # Returns
 ///
-/// A `Result` containing the modified DataFrame with the 'timestamp' column replaced
-/// by the 'date' column, or an `Error` if the operation fails.
+/// A `Result` containing the modified `DataFrame` with the `timestamp` column replaced
+/// by the `date` column, or an `Error` if the operation fails.
 ///
 /// # Errors
 ///
 /// This function will return an error if:
-/// * The 'timestamp' column is missing or cannot be accessed.
+/// * The `timestamp` column is missing or cannot be accessed.
 /// * The conversion to milliseconds or casting to datetime fails.
 /// * The column replacement or renaming operations fail.
 ///

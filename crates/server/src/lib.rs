@@ -36,7 +36,7 @@ pub async fn create_app(pool: PgPool) -> Router {
         .unwrap_or_default()
         .split(',')
         .filter(|s| !s.is_empty())
-        .map(|s| s.parse().unwrap())
+        .filter_map(|s| s.parse().ok())
         .collect::<Vec<_>>();
 
     let cors_layer = CorsLayer::new()

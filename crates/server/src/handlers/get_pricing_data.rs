@@ -2,14 +2,6 @@ use dotenv::dotenv;
 use std::env;
 use std::sync::Arc;
 
-use axum::{
-    extract::{Json, State},
-    http::StatusCode,
-};
-use starknet_crypto::{poseidon_hash_single, Felt};
-use starknet_handler::{FossilStarknetAccount, JobRequest, PitchLakeResult, PITCH_LAKE_V1};
-use tokio::{join, runtime::Handle, time::Instant};
-
 use crate::types::{JobResponse, PitchLakeJobRequest};
 use crate::AppState;
 use crate::{
@@ -19,6 +11,10 @@ use crate::{
     },
     types::PitchLakeJobRequestParams,
 };
+use axum::{
+    extract::{Json, State},
+    http::StatusCode,
+};
 use db_access::{
     models::JobStatus,
     queries::{
@@ -26,7 +22,11 @@ use db_access::{
     },
     DbConnection,
 };
+use eyre::{eyre, Result};
 use starknet::core::types::U256;
+use starknet_crypto::{poseidon_hash_single, Felt};
+use starknet_handler::{FossilStarknetAccount, JobRequest, PitchLakeResult, PITCH_LAKE_V1};
+use tokio::{join, runtime::Handle, time::Instant};
 
 // Main handler function
 pub async fn get_pricing_data(
@@ -40,7 +40,7 @@ pub async fn get_pricing_data(
         return (status, Json(response));
     }
 
-    let starknet_account = FossilStarknetAccount::new();
+    let starknet_account = FossilStarknetAccount::default();
     let job_id = generate_job_id(&payload.identifiers, &payload.params);
 
     tracing::info!("Generated job_id: {}", job_id);
@@ -225,7 +225,7 @@ async fn process_job(
     tracing::debug!("Payload received: {:?}", payload);
 
     match fetch_headers(&db, &payload).await {
-        Some((twap, volatility, reserve_price)) => {
+        Ok(Some((twap, volatility, reserve_price))) => {
             tracing::info!(
                 "Fetched block headers for job {}. Calculated values: TWAP = {}, Volatility = {}, Reserve Price = {}",
                 job_id, twap, volatility, reserve_price
@@ -259,10 +259,19 @@ async fn process_job(
                 payload.client_info.client_address
             );
 
+            let program_id = match Felt::from_hex(PITCH_LAKE_V1) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::error!("Failed to parse program ID: {:?}", e);
+                    let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
+                    return;
+                }
+            };
+
             let job_request = JobRequest {
                 vault_address: payload.client_info.vault_address,
                 timestamp: payload.client_info.timestamp,
-                program_id: Felt::from_hex(PITCH_LAKE_V1).unwrap(),
+                program_id,
             };
 
             tracing::debug!(
@@ -294,8 +303,12 @@ async fn process_job(
                 }
             }
         }
-        None => {
+        Ok(None) => {
             tracing::error!("Failed to fetch headers for job {}", job_id);
+            let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
+        }
+        Err(e) => {
+            tracing::error!("Error fetching headers for job {}: {:?}", job_id, e);
             let _ = update_job_status(&db.pool, &job_id, JobStatus::Failed, None).await;
         }
     }
@@ -307,16 +320,16 @@ async fn process_job(
 async fn fetch_headers(
     db: &Arc<DbConnection>,
     payload: &PitchLakeJobRequest,
-) -> Option<(f64, f64, f64)> {
+) -> Result<Option<(f64, f64, f64)>, eyre::Error> {
     tracing::debug!("Fetching block headers for calculations.");
 
     dotenv().ok();
     let use_mock_pricing_data = env::var("USE_MOCK_PRICING_DATA")
-        .expect("USE_MOCK_PRICING_DATA should be provided as env vars.");
+        .map_err(|_| eyre!("USE_MOCK_PRICING_DATA should be provided as env vars."))?;
 
     if use_mock_pricing_data.to_lowercase() == "true" {
         tracing::info!("Using mock pricing data");
-        return Some((14732102267.474916, 440.0, 2597499408.638207));
+        return Ok(Some((14732102267.474916, 440.0, 2597499408.638207)));
     }
 
     let (twap_headers, volatility_headers, reserve_price_headers) = join!(
@@ -351,12 +364,12 @@ async fn fetch_headers(
 
             match results {
                 (Ok(twap), Ok(volatility), Ok(reserve_price)) => {
-                    Some((twap, volatility, reserve_price))
+                    Ok(Some((twap, volatility, reserve_price)))
                 }
-                _ => None,
+                _ => Ok(None),
             }
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 
