@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Duration};
 
 use dotenv::dotenv;
 use eyre::{eyre, Result};
@@ -9,6 +9,7 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use starknet_crypto::Felt;
+use tokio::time::sleep;
 
 pub const PITCH_LAKE_V1: &str = "0x50495443485f4c414b455f5631";
 pub const DEVNET_JUNO_CHAIN_ID: &str = "0x534e5f4a554e4f5f53455155454e434552";
@@ -96,23 +97,75 @@ impl FossilStarknetAccount {
         job_request: &JobRequest,
         result: &PitchLakeResult,
     ) -> Result<Felt> {
+        const MAX_ATTEMPTS: u32 = 3;
+        const BASE_DELAY_MS: u64 = 1000; // 1 second initial delay
+
+        // Create a context string for logging
+        let context = format!(
+            "client_address={}, vault_address={}, timestamp={}, twap={}, volatility={}, reserve_price={}",
+            client_address,
+            job_request.vault_address,
+            job_request.timestamp,
+            result.twap,
+            result.volatility,
+            result.reserve_price
+        );
+
+        tracing::info!("Preparing Starknet callback: {}", context);
+
         let calldata = format_pitchlake_calldata(job_request, result);
-
         let selector = get_selector_from_name("fossil_callback")
-            .map_err(|e| eyre!("Failed to get selector: {}", e))?;
+            .map_err(|e| eyre!("Failed to get selector for fossil_callback: {}", e))?;
 
-        let tx = self
-            .account
-            .execute_v3(vec![Call {
-                selector,
-                calldata,
-                to: client_address,
-            }])
-            .send()
-            .await
-            .map_err(|e| eyre!("Failed to send transaction: {}", e))?;
+        let call = Call {
+            selector,
+            calldata,
+            to: client_address,
+        };
 
-        Ok(tx.transaction_hash)
+        let mut last_error = None;
+
+        for attempt in 1..=MAX_ATTEMPTS {
+            tracing::info!(
+                "Attempt {} of {} to send transaction to Starknet: {}",
+                attempt,
+                MAX_ATTEMPTS,
+                context
+            );
+
+            match self.account.execute_v3(vec![call.clone()]).send().await {
+                Ok(tx) => {
+                    tracing::info!(
+                        "Transaction sent successfully on attempt {}: tx_hash={}, {}",
+                        attempt,
+                        tx.transaction_hash,
+                        context
+                    );
+                    return Ok(tx.transaction_hash);
+                }
+                Err(e) => {
+                    let error_msg =
+                        format!("Failed to send transaction on attempt {}: {}", attempt, e);
+                    tracing::warn!("{}. Context: {}", error_msg, context);
+                    last_error = Some(eyre!("{}: {}", error_msg, context));
+
+                    if attempt < MAX_ATTEMPTS {
+                        // Exponential backoff: delay = base_delay * 2^(attempt-1)
+                        let delay_ms = BASE_DELAY_MS * (1 << (attempt - 1));
+                        tracing::info!("Retrying in {} ms. Context: {}", delay_ms, context);
+                        sleep(Duration::from_millis(delay_ms)).await;
+                    }
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            eyre!(
+                "Failed to send transaction after {} attempts. Context: {}",
+                MAX_ATTEMPTS,
+                context
+            )
+        }))
     }
 }
 

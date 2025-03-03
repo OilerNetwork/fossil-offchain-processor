@@ -57,7 +57,7 @@ pub async fn create_app(pool: PgPool) -> Router {
         .route("/health", get(handlers::health_check::health_check))
         .route("/api_key", post(handlers::api_key::create_api_key))
         .route(
-            "/job_status/:job_id",
+            "/job_status/{job_id}",
             get(handlers::job_status::get_job_status),
         )
         .route(
