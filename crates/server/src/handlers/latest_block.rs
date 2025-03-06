@@ -86,8 +86,8 @@ mod tests {
         ctx.create_block(12345, "1234567890".to_string(), 0).await;
         ctx.create_block(12346, "1234567891".to_string(), 0).await;
         let latest_block = 12347;
-        let latest_timestamp = "1234567892";
-        ctx.create_block(latest_block, latest_timestamp.to_string(), 0)
+        let latest_timestamp = "1234567892".to_string();
+        ctx.create_block(latest_block, latest_timestamp.clone(), 0)
             .await;
 
         let (status, Json(response)) = ctx.get_latest_block().await;
