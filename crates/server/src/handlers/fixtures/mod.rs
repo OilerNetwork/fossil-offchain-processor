@@ -60,7 +60,7 @@ impl TestContext {
             r#"
             CREATE TABLE IF NOT EXISTS blockheaders (
                 number BIGINT PRIMARY KEY,
-                timestamp BIGINT,
+                timestamp VARCHAR(100),
                 base_fee_per_gas VARCHAR(66),
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
