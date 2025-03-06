@@ -495,7 +495,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: 0,
+                timestamp: "0".to_string(),
             },
         };
 
@@ -523,7 +523,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: 0,
+                timestamp: "0".to_string(),
             },
         };
 
@@ -554,7 +554,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: 0,
+                timestamp: "0".to_string(),
             },
         };
 
@@ -585,7 +585,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: 0,
+                timestamp: "0".to_string(),
             },
         };
 
@@ -616,7 +616,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: 0,
+                timestamp: "0".to_string(),
             },
         };
 

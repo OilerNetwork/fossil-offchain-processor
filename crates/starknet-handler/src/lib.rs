@@ -19,7 +19,7 @@ pub const DEVNET_JUNO_CHAIN_ID: &str = "0x534e5f4a554e4f5f53455155454e434552";
 #[derive(Debug)]
 pub struct JobRequest {
     pub vault_address: Felt,
-    pub timestamp: u64,
+    pub timestamp: String,
     pub program_id: Felt, // 'PITCH_LAKE_V1'
 }
 
@@ -42,7 +42,7 @@ impl Default for FossilStarknetAccount {
             Ok(account) => account,
             Err(e) => {
                 tracing::error!("Error creating default FossilStarknetAccount: {}", e);
-                std::process::exit(1); // Exit the program on error
+                panic!("Failed to create default FossilStarknetAccount: {}", e);
             }
         }
     }
@@ -208,7 +208,7 @@ pub fn format_pitchlake_calldata(
     // Serialize JobRequest into Felt values
     let job_request_felts = vec![
         job_request.vault_address,
-        Felt::from(job_request.timestamp),
+        Felt::from(job_request.timestamp.parse::<u64>().unwrap()),
         job_request.program_id,
     ];
 
@@ -301,7 +301,7 @@ mod tests {
 
         let job_request = JobRequest {
             vault_address,
-            timestamp: deployment_date[0].try_into().unwrap(),
+            timestamp: deployment_date[0].to_string(),
             program_id: Felt::from_hex(PITCH_LAKE_V1).unwrap(),
         };
 
