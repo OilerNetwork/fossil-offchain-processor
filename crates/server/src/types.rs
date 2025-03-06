@@ -21,7 +21,7 @@ pub struct PitchLakeJobRequest {
 pub struct ClientInfo {
     pub client_address: Felt,
     pub vault_address: Felt,
-    pub timestamp: u64,
+    pub timestamp: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
