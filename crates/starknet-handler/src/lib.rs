@@ -232,8 +232,6 @@ pub fn format_pitchlake_calldata(
     calldata.push(Felt::from(pitch_lake_result_felts.len() as u64));
     calldata.extend(pitch_lake_result_felts);
 
-    println!("calldata: {:?}", calldata);
-
     calldata
 }
 
@@ -317,7 +315,7 @@ mod tests {
             .await?;
 
         // Print or assert the transaction hash to verify the function executed successfully
-        println!("Transaction Hash: {:?}", tx_hash);
+        tracing::info!("Transaction Hash: {:?}", tx_hash);
 
         // Simple assertion to verify the hash isn't zero (indicating a valid transaction)
         assert_ne!(tx_hash, Felt::ZERO);

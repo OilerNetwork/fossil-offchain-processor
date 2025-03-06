@@ -29,7 +29,10 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
     for header in block_headers {
         let timestamp = header
             .timestamp
-            .ok_or_else(|| err!("No timestamp in header"))?;
+            .ok_or_else(|| err!("No timestamp in header"))?
+            .parse::<i64>()
+            .map_err(|e| err!("Failed to parse timestamp as i64: {}", e))?;
+
         let base_fee = hex_string_to_f64(
             &header
                 .base_fee_per_gas
