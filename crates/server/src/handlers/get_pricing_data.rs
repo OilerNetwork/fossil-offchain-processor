@@ -404,7 +404,11 @@ async fn fetch_headers(
     }
 
     let (twap_headers, volatility_headers, reserve_price_headers) = join!(
-        get_block_headers_by_time_range(&db.pool, payload.params.twap.0.to_string(), payload.params.twap.1.to_string()),
+        get_block_headers_by_time_range(
+            &db.pool,
+            payload.params.twap.0.to_string(),
+            payload.params.twap.1.to_string()
+        ),
         get_block_headers_by_time_range(
             &db.pool,
             payload.params.volatility.0.to_string(),
