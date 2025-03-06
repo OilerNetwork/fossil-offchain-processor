@@ -26,7 +26,7 @@ curl -X POST http://localhost:3000/pricing_data \
     "client_info": {
       "client_address": "0x018df581fe0ee497a4a3595cf62aea0bafa7ba1a54a7dcbafca37bfada67c718",
       "vault_address": "0x07b0110e7230a20881e57804d68e640777f4b55b487321556682e550f93fec7c",
-      "timestamp": 1740751917
+      "timestamp": 1741243059
     }
   }'
 ```

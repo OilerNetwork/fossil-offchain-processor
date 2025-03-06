@@ -173,6 +173,7 @@ pub async fn get_block_headers_by_time_range(
         start_timestamp,
         end_timestamp
     );
+
     let headers = sqlx::query_as!(
         DbBlockHeader,
         r#"
@@ -188,7 +189,7 @@ pub async fn get_block_headers_by_time_range(
             state_root,
             timestamp
         FROM blockheaders
-        WHERE timestamp BETWEEN $1 AND $2
+        WHERE CAST(timestamp AS BIGINT) BETWEEN $1 AND $2
         ORDER BY number ASC
         "#,
         start_timestamp,

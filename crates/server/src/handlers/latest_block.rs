@@ -20,7 +20,19 @@ pub async fn get_latest_block_number(
                     StatusCode::OK,
                     Json(GetLatestBlockResponseEnum::Success(LatestBlockResponse {
                         latest_block_number: block_header.number,
-                        block_timestamp: timestamp,
+                        block_timestamp: if let Ok(ts) = timestamp.parse::<i64>() {
+                            ts
+                        } else {
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(GetLatestBlockResponseEnum::Error(ErrorResponse {
+                                    error: format!(
+                                        "Failed to parse block timestamp: {}",
+                                        timestamp
+                                    ),
+                                })),
+                            );
+                        },
                     })),
                 )
             } else {
@@ -101,7 +113,10 @@ mod tests {
         println!("Response: {:?}", response);
         assert_eq!(status, StatusCode::OK);
         assert_eq!(response.latest_block_number, latest_block);
-        assert_eq!(response.block_timestamp, latest_timestamp);
+        assert_eq!(
+            response.block_timestamp,
+            latest_timestamp.parse::<i64>().unwrap()
+        );
     }
 
     #[tokio::test]
