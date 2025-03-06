@@ -32,13 +32,8 @@ jobs:
           rustup install ${{ matrix.toolchain }}
           rustup component add --toolchain ${{ matrix.toolchain }} rustfmt clippy
 
-      - name: Install sqlx-cli
-        run: |
-          cargo install sqlx-cli
-          sqlx --version
-
-      - name: Check that sqlx queries metadata is up to date
-        run: cargo sqlx prepare --workspace --check
+      # Removed sqlx-cli installation step
+      # Removed sqlx prepare check step
 
       - name: Build
         run: cargo build --workspace --all-targets

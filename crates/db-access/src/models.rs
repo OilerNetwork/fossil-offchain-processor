@@ -100,7 +100,7 @@ pub struct TempBlockHeader {
     pub difficulty: Option<String>,
     pub totaldifficulty: Option<String>,
     pub sha3_uncles: Option<String>,
-    pub timestamp: Option<String>, // Assuming this is stored as bigint
+    pub timestamp: Option<String>,
     pub extra_data: Option<String>,
     pub mix_hash: Option<String>,
     pub withdrawals_root: Option<String>,
@@ -136,8 +136,13 @@ pub fn temp_to_block_header(temp: TempBlockHeader) -> EthBlockHeader {
         totaldifficulty: Some(temp.totaldifficulty.unwrap_or_else(|| "0x0".to_string())),
         sha3_uncles: temp.sha3_uncles, // Option<String> (if exists)
 
-        // Convert timestamp from Option<i64> to Option<String>
-        timestamp: temp.timestamp, // Convert i64 to hex string
+        // Convert timestamp from decimal to hex string format
+        timestamp: temp.timestamp.map(|ts| {
+            // Parse the decimal string to u64, then format as hex
+            ts.parse::<u64>()
+                .map(|t| format!("0x{:x}", t))
+                .unwrap_or(ts)
+        }),
         extra_data: Some(temp.extra_data.unwrap_or_default()),
         mix_hash: Some(temp.mix_hash.unwrap_or_default()),
         withdrawals_root: Some(temp.withdrawals_root.unwrap_or_default()),

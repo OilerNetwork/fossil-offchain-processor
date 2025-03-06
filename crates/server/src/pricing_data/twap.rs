@@ -16,7 +16,5 @@ pub async fn calculate_twap(headers: Vec<BlockHeader>) -> Result<f64> {
         Ok(acc + fee)
     })?;
 
-    let twap_result = total_base_fee / headers.len() as f64;
-
-    Ok(twap_result)
+    Ok(total_base_fee / headers.len() as f64)
 }

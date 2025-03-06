@@ -423,7 +423,7 @@ async fn fetch_headers(
 
     match (twap_headers, volatility_headers, reserve_price_headers) {
         (Ok(twap), Ok(volatility), Ok(reserve)) => {
-            tracing::debug!("Headers fetched successfully.");
+            tracing::debug!("Block headers fetched successfully.");
 
             let now = Instant::now();
             tracing::info!("Started processing...");

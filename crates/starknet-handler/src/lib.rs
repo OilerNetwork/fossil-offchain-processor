@@ -133,7 +133,7 @@ impl FossilStarknetAccount {
 
         tracing::info!("Preparing Starknet callback: {}", context);
 
-        let calldata = format_pitchlake_calldata(job_request, result);
+        let calldata = format_pitchlake_calldata(job_request, result)?;
         let selector = get_selector_from_name("fossil_callback")
             .map_err(|e| eyre!("Failed to get selector for fossil_callback: {}", e))?;
 
@@ -202,13 +202,18 @@ impl FossilStarknetAccount {
 pub fn format_pitchlake_calldata(
     job_request: &JobRequest,
     pitch_lake_result: &PitchLakeResult,
-) -> Vec<Felt> {
+) -> Result<Vec<Felt>> {
     let mut calldata = Vec::new();
 
     // Serialize JobRequest into Felt values
     let job_request_felts = vec![
         job_request.vault_address,
-        Felt::from(job_request.timestamp.parse::<u64>().unwrap()),
+        Felt::from(
+            job_request
+                .timestamp
+                .parse::<u64>()
+                .map_err(|e| eyre!("Failed to parse timestamp: {}", e))?,
+        ),
         job_request.program_id,
     ];
 
@@ -232,9 +237,7 @@ pub fn format_pitchlake_calldata(
     calldata.push(Felt::from(pitch_lake_result_felts.len() as u64));
     calldata.extend(pitch_lake_result_felts);
 
-    println!("calldata: {:?}", calldata);
-
-    calldata
+    Ok(calldata)
 }
 
 #[cfg(test)]
@@ -317,7 +320,7 @@ mod tests {
             .await?;
 
         // Print or assert the transaction hash to verify the function executed successfully
-        println!("Transaction Hash: {:?}", tx_hash);
+        tracing::info!("Transaction Hash: {:?}", tx_hash);
 
         // Simple assertion to verify the hash isn't zero (indicating a valid transaction)
         assert_ne!(tx_hash, Felt::ZERO);
