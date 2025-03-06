@@ -13,7 +13,7 @@ pub struct BlockHeader {
     pub transaction_root: Option<String>,
     pub receipts_root: Option<String>,
     pub state_root: Option<String>,
-    pub timestamp: Option<i64>,
+    pub timestamp: Option<String>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -35,7 +35,7 @@ pub struct Transaction {
 pub struct BlockHeaderSubset {
     pub number: i64,
     pub base_fee_per_gas: Option<String>,
-    pub timestamp: Option<i64>,
+    pub timestamp: Option<String>,
 }
 
 #[derive(sqlx::FromRow, Debug)]
@@ -100,7 +100,7 @@ pub struct TempBlockHeader {
     pub difficulty: Option<String>,
     pub totaldifficulty: Option<String>,
     pub sha3_uncles: Option<String>,
-    pub timestamp: Option<i64>, // Assuming this is stored as bigint
+    pub timestamp: Option<String>, // Assuming this is stored as bigint
     pub extra_data: Option<String>,
     pub mix_hash: Option<String>,
     pub withdrawals_root: Option<String>,
@@ -137,7 +137,7 @@ pub fn temp_to_block_header(temp: TempBlockHeader) -> EthBlockHeader {
         sha3_uncles: temp.sha3_uncles, // Option<String> (if exists)
 
         // Convert timestamp from Option<i64> to Option<String>
-        timestamp: temp.timestamp.map(|ts| format!("0x{:x}", ts)), // Convert i64 to hex string
+        timestamp: temp.timestamp, // Convert i64 to hex string
         extra_data: Some(temp.extra_data.unwrap_or_default()),
         mix_hash: Some(temp.mix_hash.unwrap_or_default()),
         withdrawals_root: Some(temp.withdrawals_root.unwrap_or_default()),

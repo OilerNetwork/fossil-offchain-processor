@@ -165,8 +165,8 @@ pub async fn get_block_by_number(
 
 pub async fn get_block_headers_by_time_range(
     pool: &PgPool,
-    start_timestamp: i64,
-    end_timestamp: i64,
+    start_timestamp: String,
+    end_timestamp: String,
 ) -> Result<Vec<DbBlockHeader>, Error> {
     tracing::debug!(
         "Getting block headers by time range: {} to {}",

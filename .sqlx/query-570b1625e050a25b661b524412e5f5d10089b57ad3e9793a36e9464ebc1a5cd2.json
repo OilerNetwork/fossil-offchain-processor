@@ -16,7 +16,7 @@
       {
         "ordinal": 2,
         "name": "timestamp",
-        "type_info": "Int8"
+        "type_info": "Varchar"
       }
     ],
     "parameters": {
