@@ -310,7 +310,7 @@ async fn process_job(
 
             let job_request = JobRequest {
                 vault_address: payload.client_info.vault_address,
-                timestamp: payload.client_info.timestamp,
+                timestamp: payload.client_info.timestamp.to_string(),
                 program_id,
             };
 
@@ -495,7 +495,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: "0".to_string(),
+                timestamp: 0,
             },
         };
 
@@ -523,7 +523,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: "0".to_string(),
+                timestamp: 0,
             },
         };
 
@@ -554,7 +554,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: "0".to_string(),
+                timestamp: 0,
             },
         };
 
@@ -585,7 +585,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: "0".to_string(),
+                timestamp: 0,
             },
         };
 
@@ -616,7 +616,7 @@ mod tests {
             client_info: ClientInfo {
                 client_address: Felt::from_hex("0x123").unwrap(),
                 vault_address: Felt::from_hex("0x456").unwrap(),
-                timestamp: "0".to_string(),
+                timestamp: 0,
             },
         };
 
