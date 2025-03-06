@@ -130,7 +130,7 @@ impl TestContext {
         get_latest_block_number(State(self.app_state.clone())).await
     }
 
-    pub async fn create_block(&self, block_number: i64, timestamp: i64, base_fee_per_gas: i64) {
+    pub async fn create_block(&self, block_number: i64, timestamp: String, base_fee_per_gas: i64) {
         sqlx::query!(
             r#"
             INSERT INTO blockheaders (number, timestamp, base_fee_per_gas)

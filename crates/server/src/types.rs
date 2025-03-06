@@ -56,7 +56,7 @@ pub enum GetJobStatusResponseEnum {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LatestBlockResponse {
     pub latest_block_number: i64,
-    pub block_timestamp: i64,
+    pub block_timestamp: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

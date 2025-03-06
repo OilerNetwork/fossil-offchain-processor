@@ -51,13 +51,13 @@
       {
         "ordinal": 9,
         "name": "timestamp",
-        "type_info": "Int8"
+        "type_info": "Varchar"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Int8"
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
