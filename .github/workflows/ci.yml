@@ -63,4 +63,4 @@ jobs:
         run: cargo +${{ matrix.toolchain }} fmt --all -- --check
 
       - name: Run clippy
-        run: cargo +${{ matrix.toolchain }} clippy --workspace -- -D warnings
+        run: ./scripts/clippy.sh
