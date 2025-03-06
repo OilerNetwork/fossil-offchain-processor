@@ -135,7 +135,6 @@ pub fn temp_to_block_header(temp: TempBlockHeader) -> EthBlockHeader {
         difficulty: Some(temp.difficulty.unwrap_or_else(|| "0x0".to_string())),
         totaldifficulty: Some(temp.totaldifficulty.unwrap_or_else(|| "0x0".to_string())),
         sha3_uncles: temp.sha3_uncles, // Option<String> (if exists)
-
         // Convert timestamp from decimal to hex string format
         timestamp: temp.timestamp.map(|ts| {
             // Parse the decimal string to u64, then format as hex
