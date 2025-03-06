@@ -42,7 +42,7 @@ impl Default for FossilStarknetAccount {
             Ok(account) => account,
             Err(e) => {
                 tracing::error!("Error creating default FossilStarknetAccount: {}", e);
-                std::process::exit(1); // Exit the program on error
+                panic!("Failed to create default FossilStarknetAccount: {}", e);
             }
         }
     }
