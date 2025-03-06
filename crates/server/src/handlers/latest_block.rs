@@ -21,7 +21,7 @@ pub async fn get_latest_block_number(
                     Json(GetLatestBlockResponseEnum::Success(LatestBlockResponse {
                         latest_block_number: block_header.number,
                         block_timestamp: if let Ok(ts) = timestamp.parse::<i64>() {
-                            ts
+                            ts.to_string()
                         } else {
                             return (
                                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -115,7 +115,7 @@ mod tests {
         assert_eq!(response.latest_block_number, latest_block);
         assert_eq!(
             response.block_timestamp,
-            latest_timestamp.parse::<i64>().unwrap()
+            latest_timestamp.parse::<i64>().unwrap().to_string()
         );
     }
 

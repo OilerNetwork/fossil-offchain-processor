@@ -174,6 +174,21 @@ pub async fn get_block_headers_by_time_range(
         end_timestamp
     );
 
+    // Parse the strings to i64 before passing to the query
+    let start_ts = start_timestamp
+        .parse::<i64>()
+        .map_err(|e| Error::ColumnDecode {
+            index: String::new(),
+            source: Box::new(e),
+        })?;
+
+    let end_ts = end_timestamp
+        .parse::<i64>()
+        .map_err(|e| Error::ColumnDecode {
+            index: String::new(),
+            source: Box::new(e),
+        })?;
+
     let headers = sqlx::query_as!(
         DbBlockHeader,
         r#"
@@ -192,8 +207,8 @@ pub async fn get_block_headers_by_time_range(
         WHERE CAST(timestamp AS BIGINT) BETWEEN $1 AND $2
         ORDER BY number ASC
         "#,
-        start_timestamp,
-        end_timestamp
+        start_ts,
+        end_ts
     )
     .fetch_all(pool)
     .await?;
