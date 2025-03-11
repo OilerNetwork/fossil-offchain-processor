@@ -30,7 +30,7 @@ pub struct PitchLakeResult {
     pub reserve_price: U256,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FossilStarknetAccount {
     pub account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
     circuit_breaker: Arc<CircuitBreaker>,

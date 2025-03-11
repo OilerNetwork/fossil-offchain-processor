@@ -362,3 +362,25 @@ pub async fn latest_block_number(pool: &PgPool) -> Result<Option<BlockHeaderSubs
 
     Ok(block)
 }
+
+pub async fn get_stale_in_progress_jobs(
+    pool: &PgPool,
+    stale_seconds: i64,
+) -> Result<Vec<JobRequest>, sqlx::Error> {
+    sqlx::query_as!(
+        JobRequest,
+        r#"
+        SELECT 
+            job_id, 
+            status as "status: JobStatus", 
+            created_at, 
+            result
+        FROM job_requests 
+        WHERE status = 'inprogress' 
+        AND created_at < NOW() - INTERVAL '1 second' * $1::float8
+        "#,
+        stale_seconds as f64
+    )
+    .fetch_all(pool)
+    .await
+}

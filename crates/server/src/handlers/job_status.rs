@@ -90,6 +90,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_job_status_in_progress() {
+        let ctx = TestContext::new().await;
+        let job_id = "in_progress_job_id";
+
+        ctx.create_job(job_id, JobStatus::InProgress).await;
+
+        let (status, Json(response)) = ctx.get_job_status(job_id).await;
+
+        let response = match response {
+            GetJobStatusResponseEnum::Success(success_res) => success_res,
+            GetJobStatusResponseEnum::Error(_) => panic!("Unexpected response status"),
+        };
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(response.job_id, job_id);
+        assert_eq!(response.status.unwrap(), JobStatus::InProgress);
+    }
+
+    #[tokio::test]
     async fn test_get_job_status_failed() {
         let ctx = TestContext::new().await;
         let job_id = "failed_job_id";

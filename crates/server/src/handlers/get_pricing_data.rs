@@ -15,6 +15,7 @@ use axum::{
     extract::{Json, State},
     http::StatusCode,
 };
+use chrono;
 use db_access::{
     models::JobStatus,
     queries::{
@@ -126,11 +127,104 @@ async fn handle_existing_job(
     starknet_account: FossilStarknetAccount,
 ) -> (StatusCode, Json<JobResponse>) {
     match status {
-        JobStatus::Pending => job_response(
-            StatusCode::CONFLICT,
-            job_id,
-            "Job is already pending. Use the status endpoint to monitor progress.",
-        ),
+        JobStatus::Pending => {
+            // Check if the job has been pending for too long (10 minutes)
+            match get_job_request(&state.db.pool, &job_id).await {
+                Ok(Some(job)) => {
+                    let now = chrono::Utc::now().naive_utc();
+                    tracing::info!("job.created_at: {:?}", job.created_at);
+                    tracing::info!("now: {:?}", now);
+                    let job_age = now.signed_duration_since(job.created_at);
+                    tracing::info!("job_age: {:?}-minutes", job_age.num_minutes());
+
+                    // If job has been pending for more than 10 minutes, mark it as failed and restart
+                    if job_age.num_minutes() > 10 {
+                        tracing::warn!("Job {} has been pending for too long ({}m). Marking as failed and restarting.", 
+                            job_id, job_age.num_minutes());
+
+                        // Mark the old job as failed
+                        if let Err(e) = update_job_status(
+                            &state.db.pool,
+                            &job_id,
+                            JobStatus::Failed,
+                            Some(serde_json::json!({
+                                "error": "Job timed out after pending for too long"
+                            })),
+                        )
+                        .await
+                        {
+                            tracing::error!("Failed to update stale job status: {:?}", e);
+                            return internal_server_error(e, job_id);
+                        }
+
+                        // Restart the job by setting it back to Pending and spawning a new worker
+                        return reprocess_failed_job(state, job_id, payload, starknet_account)
+                            .await;
+                    } else {
+                        // Job is still within acceptable time limit
+                        job_response(
+                            StatusCode::CONFLICT,
+                            job_id,
+                            "Job is already pending. Use the status endpoint to monitor progress.",
+                        )
+                    }
+                }
+                Ok(None) => {
+                    // This shouldn't happen, but just in case
+                    handle_new_job_request(state, job_id, payload, starknet_account).await
+                }
+                Err(e) => internal_server_error(e, job_id),
+            }
+        }
+        JobStatus::InProgress => {
+            // Check if the job has been running for too long (10 minutes)
+            match get_job_request(&state.db.pool, &job_id).await {
+                Ok(Some(job)) => {
+                    let now = chrono::Utc::now().naive_utc();
+                    tracing::info!("job.created_at: {:?}", job.created_at);
+                    tracing::info!("now: {:?}", now);
+                    let job_age = now.signed_duration_since(job.created_at);
+                    tracing::info!("job_age: {:?}-minutes", job_age.num_minutes());
+
+                    // If job has been running for more than 10 minutes, mark it as failed and restart
+                    if job_age.num_minutes() > 10 {
+                        tracing::warn!("Job {} has been in progress for too long ({}m). Marking as failed and restarting.", 
+                            job_id, job_age.num_minutes());
+
+                        // Mark the old job as failed
+                        if let Err(e) = update_job_status(
+                            &state.db.pool,
+                            &job_id,
+                            JobStatus::Failed,
+                            Some(serde_json::json!({
+                                "error": "Job timed out after running for too long"
+                            })),
+                        )
+                        .await
+                        {
+                            tracing::error!("Failed to update stale job status: {:?}", e);
+                            return internal_server_error(e, job_id);
+                        }
+
+                        // Restart the job by setting it back to Pending and spawning a new worker
+                        return reprocess_failed_job(state, job_id, payload, starknet_account)
+                            .await;
+                    } else {
+                        // Job is still within acceptable time limit
+                        job_response(
+                            StatusCode::CONFLICT,
+                            job_id,
+                            "Job is currently in progress. Use the status endpoint to monitor progress.",
+                        )
+                    }
+                }
+                Ok(None) => {
+                    // This shouldn't happen, but just in case
+                    handle_new_job_request(state, job_id, payload, starknet_account).await
+                }
+                Err(e) => internal_server_error(e, job_id),
+            }
+        }
         JobStatus::Completed => job_response(
             StatusCode::OK,
             job_id,
@@ -185,20 +279,29 @@ async fn reprocess_failed_job(
     payload: PitchLakeJobRequest,
     starknet_account: FossilStarknetAccount,
 ) -> (StatusCode, Json<JobResponse>) {
+    tracing::info!("Reprocessing failed job: {}", job_id);
+
     if let Err(e) = update_job_status(&state.db.pool, &job_id, JobStatus::Pending, None).await {
+        tracing::error!("Failed to update job status to Pending: {:?}", e);
         return internal_server_error(e, job_id);
     }
+
+    tracing::info!("Successfully updated job status to Pending. Starting processing.");
+
+    // Spawn the processing task directly without spawn_blocking
     let db_clone = state.db.clone();
     let job_id_clone = job_id.clone();
-    let handle = Handle::current();
+    let payload_clone = payload.clone();
+    let starknet_account_clone = starknet_account.clone();
 
-    tokio::task::spawn_blocking(move || {
-        handle.block_on(process_job(
+    tokio::spawn(async move {
+        process_job(
             db_clone,
             job_id_clone,
-            payload,
-            starknet_account,
-        ));
+            payload_clone,
+            starknet_account_clone,
+        )
+        .await;
     });
 
     job_response(
@@ -255,6 +358,20 @@ async fn process_job(
     tracing::info!("Starting job processing. {}", context);
     tracing::debug!("Payload received: {:?}. {}", payload, context);
 
+    // Update job status to InProgress when worker picks it up
+    match update_job_status(&db.pool, &job_id, JobStatus::InProgress, None).await {
+        Ok(_) => tracing::info!("Successfully updated job status to InProgress. {}", context),
+        Err(e) => {
+            tracing::error!(
+                "Failed to update job status to InProgress: {:?}. {}",
+                e,
+                context
+            );
+            return;
+        }
+    }
+
+    tracing::info!("Fetching headers for job. {}", context);
     let job_result = match fetch_headers(&db, &payload).await {
         Ok(Some((twap, volatility, reserve_price))) => {
             tracing::info!(
@@ -537,6 +654,37 @@ mod tests {
         assert_eq!(
             response.message.unwrap_or_default(),
             "Job is already pending. Use the status endpoint to monitor progress."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_pricing_data_in_progress_job() {
+        let ctx = TestContext::new().await;
+
+        let payload = PitchLakeJobRequest {
+            identifiers: vec!["test-id".to_string()],
+            params: PitchLakeJobRequestParams {
+                twap: (0, 100),
+                volatility: (0, 100),
+                reserve_price: (0, 100),
+            },
+            client_info: ClientInfo {
+                client_address: Felt::from_hex("0x123").unwrap(),
+                vault_address: Felt::from_hex("0x456").unwrap(),
+                timestamp: 0,
+            },
+        };
+
+        let job_id = generate_job_id(&payload.identifiers, &payload.params);
+        ctx.create_job(&job_id, JobStatus::InProgress).await;
+
+        let (status, Json(response)) = ctx.get_pricing_data(payload).await;
+
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(response.job_id, job_id);
+        assert_eq!(
+            response.message.unwrap_or_default(),
+            "Job is currently in progress. Use the status endpoint to monitor progress."
         );
     }
 

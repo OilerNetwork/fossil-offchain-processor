@@ -1,5 +1,4 @@
 use dotenv::dotenv;
-use server::create_app;
 use sqlx::PgPool;
 use std::error::Error;
 use tracing::info;
@@ -10,7 +9,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     dotenv().ok();
 
     let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
-    let app = create_app(pool).await;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
 
     let fmt_layer = fmt::layer()
@@ -28,6 +26,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .init();
 
     info!("Server is listening on {}", listener.local_addr()?);
+
+    // Handle stale in-progress jobs on startup
+    server::handle_stale_jobs(&pool).await;
+
+    // Create app after handling stale jobs
+    let app = server::create_app(pool).await;
+
     axum::serve(listener, app.into_make_service()).await?;
     Ok(())
 }

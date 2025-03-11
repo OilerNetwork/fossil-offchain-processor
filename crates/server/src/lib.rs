@@ -13,7 +13,11 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use db_access::DbConnection;
+use db_access::{
+    models::JobStatus,
+    queries::{get_stale_in_progress_jobs, update_job_status},
+    DbConnection,
+};
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
@@ -73,4 +77,40 @@ pub async fn create_app(pool: PgPool) -> Router {
         .layer(TraceLayer::new_for_http())
         .layer(cors_layer) // Apply the custom CORS layer
         .with_state(app_state)
+}
+
+// Add this function to handle stale in_progress jobs
+pub async fn handle_stale_jobs(db_pool: &sqlx::PgPool) {
+    tracing::info!("Checking for stale in-progress jobs on startup");
+
+    // Consider jobs in_progress for more than 10 minutes as stale
+    let stale_timeout = Duration::from_secs(10 * 60);
+
+    match get_stale_in_progress_jobs(db_pool, stale_timeout.as_secs() as i64).await {
+        Ok(jobs) => {
+            let count = jobs.len();
+            tracing::info!("Found {} stale in-progress jobs", count);
+
+            for job in jobs {
+                tracing::info!("Marking stale job {} as failed", job.job_id);
+                if let Err(e) = update_job_status(
+                    db_pool,
+                    &job.job_id,
+                    JobStatus::Failed,
+                    Some(serde_json::json!({
+                        "error": "Job was interrupted by service restart"
+                    })),
+                )
+                .await
+                {
+                    tracing::error!("Failed to update stale job status: {:?}", e);
+                }
+            }
+
+            tracing::info!("Finished processing stale jobs");
+        }
+        Err(e) => {
+            tracing::error!("Failed to retrieve stale in-progress jobs: {:?}", e);
+        }
+    }
 }

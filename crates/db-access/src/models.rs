@@ -44,10 +44,11 @@ pub struct ApiKey {
     pub name: Option<String>,
 }
 
-#[derive(sqlx::Type, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
 #[sqlx(type_name = "TEXT")]
 pub enum JobStatus {
     Pending,
+    InProgress,
     Completed,
     Failed,
 }
@@ -56,6 +57,7 @@ impl fmt::Display for JobStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Pending => write!(f, "Pending"),
+            Self::InProgress => write!(f, "InProgress"),
             Self::Completed => write!(f, "Completed"),
             Self::Failed => write!(f, "Failed"),
         }
