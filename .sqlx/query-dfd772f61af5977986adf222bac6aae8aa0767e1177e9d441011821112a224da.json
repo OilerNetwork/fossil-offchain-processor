@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT number, base_fee_per_gas, timestamp\n        FROM blockheaders\n        WHERE number BETWEEN $1 AND $2\n        ORDER BY number ASC\n        ",
+  "query": "\n        SELECT number, timestamp, base_fee_per_gas\n        FROM blockheaders \n        ORDER BY number DESC \n        LIMIT 1\n        ",
   "describe": {
     "columns": [
       {
@@ -10,20 +10,17 @@
       },
       {
         "ordinal": 1,
-        "name": "base_fee_per_gas",
+        "name": "timestamp",
         "type_info": "Varchar"
       },
       {
         "ordinal": 2,
-        "name": "timestamp",
+        "name": "base_fee_per_gas",
         "type_info": "Varchar"
       }
     ],
     "parameters": {
-      "Left": [
-        "Int8",
-        "Int8"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -31,5 +28,5 @@
       true
     ]
   },
-  "hash": "570b1625e050a25b661b524412e5f5d10089b57ad3e9793a36e9464ebc1a5cd2"
+  "hash": "dfd772f61af5977986adf222bac6aae8aa0767e1177e9d441011821112a224da"
 }

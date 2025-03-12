@@ -1,3 +1,6 @@
+#![deny(unused_crate_dependencies)]
+use tracing_subscriber as _;
+
 pub mod handlers;
 pub mod middlewares;
 pub mod pricing_data;
@@ -29,11 +32,15 @@ pub async fn create_app(pool: PgPool) -> Router {
     let app_state = AppState { db: Arc::new(db) };
 
     // Define the CORS layer
+    let allowed_origins = std::env::var("ALLOWED_ORIGINS")
+        .unwrap_or_default()
+        .split(',')
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| s.parse().ok())
+        .collect::<Vec<_>>();
+
     let cors_layer = CorsLayer::new()
-        .allow_origin(AllowOrigin::list([
-            "https://app.pitchlake.nethermind.dev".parse().unwrap(),
-            "https://pitchlake-front.vercel.app/".parse().unwrap(),
-        ]))
+        .allow_origin(AllowOrigin::list(allowed_origins))
         .allow_methods(AllowMethods::any()) // Allow all methods (customize as needed)
         .allow_headers(AllowHeaders::any()) // Allow all headers
         .max_age(Duration::from_secs(3600)); // Cache preflight response for 1 hour
@@ -50,8 +57,12 @@ pub async fn create_app(pool: PgPool) -> Router {
         .route("/health", get(handlers::health_check::health_check))
         .route("/api_key", post(handlers::api_key::create_api_key))
         .route(
-            "/job_status/:job_id",
+            "/job_status/{job_id}",
             get(handlers::job_status::get_job_status),
+        )
+        .route(
+            "/latest_block",
+            get(handlers::latest_block::get_latest_block_number),
         )
         .layer(CorsLayer::permissive());
     //.layer(cors_layer.clone());

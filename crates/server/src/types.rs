@@ -21,7 +21,7 @@ pub struct PitchLakeJobRequest {
 pub struct ClientInfo {
     pub client_address: Felt,
     pub vault_address: Felt,
-    pub timestamp: u64,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -32,7 +32,7 @@ pub struct JobResponse {
 }
 
 impl JobResponse {
-    pub fn new(job_id: String, message: Option<String>, status: Option<JobStatus>) -> Self {
+    pub const fn new(job_id: String, message: Option<String>, status: Option<JobStatus>) -> Self {
         Self {
             job_id,
             message,
@@ -50,5 +50,18 @@ pub struct ErrorResponse {
 #[serde(untagged)]
 pub enum GetJobStatusResponseEnum {
     Success(JobResponse),
+    Error(ErrorResponse),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LatestBlockResponse {
+    pub latest_block_number: i64,
+    pub block_timestamp: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum GetLatestBlockResponseEnum {
+    Success(LatestBlockResponse),
     Error(ErrorResponse),
 }

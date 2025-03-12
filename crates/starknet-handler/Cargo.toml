@@ -9,6 +9,6 @@ edition = { workspace = true }
 eyre = { workspace = true }
 dotenv = { workspace = true }
 tokio = { workspace = true }
-
-starknet-crypto = "0.7.2"
-starknet = "0.12"
+starknet-crypto = { workspace = true }
+starknet = { workspace = true }
+tracing = { workspace = true }

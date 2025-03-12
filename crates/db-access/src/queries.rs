@@ -2,7 +2,7 @@ use crate::models::{temp_to_block_header, JobRequest, JobStatus};
 use crate::models::{
     BlockHeader as DbBlockHeader, BlockHeaderSubset, TempBlockHeader, Transaction,
 };
-use eth_rlp_verify::block_header::BlockHeader;
+use eth_rlp_types::BlockHeader;
 use eyre::Result;
 use sqlx::{types::BigDecimal, Error, PgPool};
 
@@ -165,14 +165,30 @@ pub async fn get_block_by_number(
 
 pub async fn get_block_headers_by_time_range(
     pool: &PgPool,
-    start_timestamp: i64,
-    end_timestamp: i64,
+    start_timestamp: String,
+    end_timestamp: String,
 ) -> Result<Vec<DbBlockHeader>, Error> {
     tracing::debug!(
         "Getting block headers by time range: {} to {}",
         start_timestamp,
         end_timestamp
     );
+
+    // Parse the strings to i64 before passing to the query
+    let start_ts = start_timestamp
+        .parse::<i64>()
+        .map_err(|e| Error::ColumnDecode {
+            index: String::new(),
+            source: Box::new(e),
+        })?;
+
+    let end_ts = end_timestamp
+        .parse::<i64>()
+        .map_err(|e| Error::ColumnDecode {
+            index: String::new(),
+            source: Box::new(e),
+        })?;
+
     let headers = sqlx::query_as!(
         DbBlockHeader,
         r#"
@@ -188,11 +204,11 @@ pub async fn get_block_headers_by_time_range(
             state_root,
             timestamp
         FROM blockheaders
-        WHERE timestamp BETWEEN $1 AND $2
+        WHERE CAST(timestamp AS BIGINT) BETWEEN $1 AND $2
         ORDER BY number ASC
         "#,
-        start_timestamp,
-        end_timestamp
+        start_ts,
+        end_ts
     )
     .fetch_all(pool)
     .await?;
@@ -329,4 +345,20 @@ pub async fn update_job_result(
     .await?;
 
     Ok(())
+}
+
+pub async fn latest_block_number(pool: &PgPool) -> Result<Option<BlockHeaderSubset>, Error> {
+    let block = sqlx::query_as!(
+        BlockHeaderSubset,
+        r#"
+        SELECT number, timestamp, base_fee_per_gas
+        FROM blockheaders 
+        ORDER BY number DESC 
+        LIMIT 1
+        "#
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(block)
 }
