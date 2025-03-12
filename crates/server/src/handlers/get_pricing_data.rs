@@ -6,8 +6,8 @@ use crate::types::{JobResponse, PitchLakeJobRequest};
 use crate::AppState;
 use crate::{
     pricing_data::{
-        reserve_price::calculate_reserve_price, twap::calculate_twap,
-        volatility::calculate_volatility,
+        max_returns::calculate_max_returns, reserve_price::calculate_reserve_price,
+        twap::calculate_twap,
     },
     types::PitchLakeJobRequestParams,
 };
@@ -35,11 +35,11 @@ pub async fn get_pricing_data(
 ) -> (StatusCode, Json<JobResponse>) {
     let identifiers = payload.identifiers.join(",");
     let context = format!(
-        "identifiers=[{}], timestamp={}, twap-range=({},{}), volatility-range=({},{}), reserve_price-range=({},{}), client_address={:#064x}, vault_address={:#064x}",
+        "identifiers=[{}], timestamp={}, twap-range=({},{}), max_returns-range=({},{}), reserve_price-range=({},{}), client_address={:#064x}, vault_address={:#064x}",
         identifiers,
         payload.client_info.timestamp,
         payload.params.twap.0, payload.params.twap.1,
-        payload.params.volatility.0, payload.params.volatility.1,
+        payload.params.max_returns.0, payload.params.max_returns.1,
         payload.params.reserve_price.0, payload.params.reserve_price.1,
         payload.client_info.client_address,
         payload.client_info.vault_address,
@@ -108,8 +108,8 @@ fn generate_job_id(identifiers: &[String], params: &PitchLakeJobRequestParams) -
         "{}{}{}{}{}{}",
         params.twap.0,
         params.twap.1,
-        params.volatility.0,
-        params.volatility.1,
+        params.max_returns.0,
+        params.max_returns.1,
         params.reserve_price.0,
         params.reserve_price.1
     ));
@@ -242,11 +242,11 @@ async fn process_job(
     starknet_account: FossilStarknetAccount,
 ) {
     let context = format!(
-        "job_id={}, identifiers=[{}], twap=({},{}), volatility=({},{}), reserve_price=({},{}), client_address={:#064x}, vault_address={:#064x}",
+        "job_id={}, identifiers=[{}], twap=({},{}), max_returns=({},{}), reserve_price=({},{}), client_address={:#064x}, vault_address={:#064x}",
         job_id,
         payload.identifiers.join(","),
         payload.params.twap.0, payload.params.twap.1,
-        payload.params.volatility.0, payload.params.volatility.1,
+        payload.params.max_returns.0, payload.params.max_returns.1,
         payload.params.reserve_price.0, payload.params.reserve_price.1,
         payload.client_info.client_address,
         payload.client_info.vault_address,
@@ -256,15 +256,15 @@ async fn process_job(
     tracing::debug!("Payload received: {:?}. {}", payload, context);
 
     let job_result = match fetch_headers(&db, &payload).await {
-        Ok(Some((twap, volatility, reserve_price))) => {
+        Ok(Some((twap, max_returns, reserve_price))) => {
             tracing::info!(
-                "Fetched block headers. Calculated values: TWAP = {}, Volatility = {}, Reserve Price = {}. {}",
-                twap, volatility, reserve_price, context
+                "Fetched block headers. Calculated values: TWAP = {}, max_returns = {}, Reserve Price = {}. {}",
+                twap, max_returns, reserve_price, context
             );
 
             let result = PitchLakeResult {
                 twap: U256::from(twap as u128),
-                volatility: volatility as u128,
+                max_returns: max_returns as u128,
                 reserve_price: U256::from(reserve_price as u128),
             };
 
@@ -274,7 +274,7 @@ async fn process_job(
                 JobStatus::Completed,
                 Some(serde_json::json!({
                     "twap": twap,
-                    "volatility": volatility,
+                    "max_returns": max_returns,
                     "reserve_price": reserve_price,
                 })),
             )
@@ -403,7 +403,7 @@ async fn fetch_headers(
         return Ok(Some((14732102267.474916, 440.0, 2597499408.638207)));
     }
 
-    let (twap_headers, volatility_headers, reserve_price_headers) = join!(
+    let (twap_headers, max_returns_headers, reserve_price_headers) = join!(
         get_block_headers_by_time_range(
             &db.pool,
             payload.params.twap.0.to_string(),
@@ -411,8 +411,8 @@ async fn fetch_headers(
         ),
         get_block_headers_by_time_range(
             &db.pool,
-            payload.params.volatility.0.to_string(),
-            payload.params.volatility.1.to_string()
+            payload.params.max_returns.0.to_string(),
+            payload.params.max_returns.1.to_string()
         ),
         get_block_headers_by_time_range(
             &db.pool,
@@ -421,8 +421,8 @@ async fn fetch_headers(
         )
     );
 
-    match (twap_headers, volatility_headers, reserve_price_headers) {
-        (Ok(twap), Ok(volatility), Ok(reserve)) => {
+    match (twap_headers, max_returns_headers, reserve_price_headers) {
+        (Ok(twap), Ok(max_returns), Ok(reserve)) => {
             tracing::debug!("Block headers fetched successfully.");
 
             let now = Instant::now();
@@ -430,7 +430,7 @@ async fn fetch_headers(
 
             let results = join!(
                 calculate_twap(twap),
-                calculate_volatility(volatility),
+                calculate_max_returns(max_returns),
                 calculate_reserve_price(reserve)
             );
 
@@ -438,8 +438,8 @@ async fn fetch_headers(
             tracing::info!("Elapsed: {:.2?}", elapsed);
 
             match results {
-                (Ok(twap), Ok(volatility), Ok(reserve_price)) => {
-                    Ok(Some((twap, volatility, reserve_price)))
+                (Ok(twap), Ok(max_returns), Ok(reserve_price)) => {
+                    Ok(Some((twap, max_returns, reserve_price)))
                 }
                 _ => Ok(None),
             }
@@ -454,7 +454,7 @@ fn validate_time_ranges(
 ) -> Result<(), (StatusCode, JobResponse)> {
     let validations = [
         ("TWAP", params.twap),
-        ("Volatility", params.volatility),
+        ("Max_returns", params.max_returns),
         ("Reserve Price", params.reserve_price),
     ];
 
@@ -489,7 +489,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (0, 100),
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
@@ -517,7 +517,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (0, 100),
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
@@ -548,7 +548,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (0, 100),
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
@@ -579,7 +579,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (0, 100),
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
@@ -610,7 +610,7 @@ mod tests {
             identifiers: vec!["test-id".to_string()],
             params: PitchLakeJobRequestParams {
                 twap: (100, 0), // Invalid range
-                volatility: (0, 100),
+                max_returns: (0, 100),
                 reserve_price: (0, 100),
             },
             client_info: ClientInfo {
