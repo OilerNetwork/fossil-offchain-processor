@@ -128,24 +128,25 @@ fn add_twap_30d(df: DataFrame) -> Result<DataFrame> {
 /// * The grouping or aggregation operations fail.
 /// * The final collection of the lazy DataFrame fails.
 ///
-// Instead of grouping, just sort the data
 fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
-    tracing::debug!("DataFrame shape before sorting: {:?}", df.shape());
+    tracing::debug!("DataFrame shape before grouping: {:?}", df.shape());
 
     let df = df
         .lazy()
-        .sort(
-            vec!["date"],
-            SortMultipleOptions {
-                descending: vec![false],
-                nulls_last: vec![true],
-                multithreaded: true,
-                maintain_order: false,
+        .group_by_dynamic(
+            col("date"),
+            [],
+            DynamicGroupOptions {
+                every: Duration::parse("1h"),
+                period: Duration::parse("1h"),
+                offset: Duration::parse("0"),
+                ..Default::default()
             },
         )
+        .agg([col("base_fee").mean()])
         .collect()?;
 
-    tracing::debug!("DataFrame shape after sorting: {:?}", df.shape());
+    tracing::debug!("DataFrame shape after grouping: {:?}", df.shape());
     tracing::debug!("DataFrame: {:?}", df);
 
     Ok(df)
