@@ -13,16 +13,15 @@ pub async fn get_transactions_by_block_number(
     db: Arc<IndexerDbConnection>,
     block_number: i64,
 ) -> Result<Vec<Transaction>, Error> {
-    let transactions = sqlx::query_as!(
-        Transaction,
+    let transactions = sqlx::query_as(
         r#"
         SELECT block_number, transaction_hash, transaction_index, from_addr, to_addr, value, gas_price,
                max_priority_fee_per_gas, max_fee_per_gas, gas, chain_id
         FROM public.transactions
         WHERE block_number = $1
         "#,
-        block_number
     )
+    .bind(block_number)
     .fetch_all(&db.db_connection().pool)
     .await?;
 
@@ -34,17 +33,16 @@ pub async fn get_base_fees_between_blocks(
     start_block: i64,
     end_block: i64,
 ) -> Result<Vec<BlockHeaderSubset>, Error> {
-    let headers = sqlx::query_as!(
-        BlockHeaderSubset,
+    let headers = sqlx::query_as(
         r#"
         SELECT number, base_fee_per_gas, timestamp
         FROM blockheaders
         WHERE number BETWEEN $1 AND $2
         ORDER BY number ASC
         "#,
-        start_block,
-        end_block
     )
+    .bind(start_block)
+    .bind(end_block)
     .fetch_all(&db.db_connection().pool)
     .await?;
 
@@ -56,15 +54,15 @@ pub async fn get_avg_base_fee(
     start_block: i64,
     end_block: i64,
 ) -> Result<Option<BigDecimal>, Error> {
-    let avg_base_fee = sqlx::query_scalar!(
+    let avg_base_fee = sqlx::query_scalar(
         r#"
         SELECT AVG(CAST(base_fee_per_gas AS NUMERIC))
         FROM blockheaders
         WHERE number BETWEEN $1 AND $2
         "#,
-        start_block,
-        end_block
     )
+    .bind(start_block)
+    .bind(end_block)
     .fetch_one(&db.db_connection().pool)
     .await?;
 
@@ -76,15 +74,15 @@ pub async fn get_base_fee_volatility(
     start_block: i64,
     end_block: i64,
 ) -> Result<Option<BigDecimal>, Error> {
-    let volatility = sqlx::query_scalar!(
+    let volatility = sqlx::query_scalar(
         r#"
         SELECT STDDEV(CAST(base_fee_per_gas AS NUMERIC))
         FROM blockheaders
         WHERE number BETWEEN $1 AND $2
         "#,
-        start_block,
-        end_block
     )
+    .bind(start_block)
+    .bind(end_block)
     .fetch_one(&db.db_connection().pool)
     .await?;
 
@@ -96,7 +94,7 @@ pub async fn get_reserve_price(
     x: i64,
     y: i64,
 ) -> Result<Option<BigDecimal>, Error> {
-    let reserve_price = sqlx::query_scalar!(
+    let reserve_price = sqlx::query_scalar(
         r#"
         WITH twap AS (
             SELECT AVG(CAST(base_fee_per_gas AS NUMERIC)) AS avg_base_fee
@@ -111,9 +109,9 @@ pub async fn get_reserve_price(
         SELECT (avg_base_fee + base_fee_volatility) AS reserve_price
         FROM twap, volatility
         "#,
-        x,
-        y
     )
+    .bind(x)
+    .bind(y)
     .fetch_one(&db.db_connection().pool)
     .await?;
 
@@ -125,16 +123,22 @@ pub async fn get_twap_and_volatility(
     x: i64,
     y: i64,
 ) -> Result<(Option<BigDecimal>, Option<BigDecimal>), Error> {
-    let row = sqlx::query!(
+    #[derive(sqlx::FromRow)]
+    struct TwapVolatility {
+        twap: Option<BigDecimal>,
+        volatility: Option<BigDecimal>,
+    }
+
+    let row: TwapVolatility = sqlx::query_as(
         r#"
         SELECT AVG(CAST(base_fee_per_gas AS NUMERIC)) AS twap,
                STDDEV(CAST(base_fee_per_gas AS NUMERIC)) AS volatility
         FROM blockheaders
         WHERE number BETWEEN $1 AND $2
         "#,
-        x,
-        y
     )
+    .bind(x)
+    .bind(y)
     .fetch_one(&db.db_connection().pool)
     .await?;
 
@@ -145,8 +149,7 @@ pub async fn get_block_by_number(
     db: Arc<IndexerDbConnection>,
     block_number: i64,
 ) -> Result<Option<DbBlockHeader>, Error> {
-    let block: Option<DbBlockHeader> = sqlx::query_as!(
-        DbBlockHeader,
+    let block: Option<DbBlockHeader> = sqlx::query_as(
         r#"
         SELECT 
             block_hash, 
@@ -162,8 +165,8 @@ pub async fn get_block_by_number(
         FROM blockheaders
         WHERE number = $1
         "#,
-        block_number
     )
+    .bind(block_number)
     .fetch_optional(&db.db_connection().pool)
     .await?;
 
@@ -196,8 +199,7 @@ pub async fn get_block_headers_by_time_range(
             source: Box::new(e),
         })?;
 
-    let headers = sqlx::query_as!(
-        DbBlockHeader,
+    let headers = sqlx::query_as(
         r#"
         SELECT 
             block_hash, 
@@ -214,9 +216,9 @@ pub async fn get_block_headers_by_time_range(
         WHERE CAST(timestamp AS BIGINT) BETWEEN $1 AND $2
         ORDER BY number ASC
         "#,
-        start_ts,
-        end_ts
     )
+    .bind(start_ts)
+    .bind(end_ts)
     .fetch_all(&db.db_connection().pool)
     .await?;
 
@@ -287,19 +289,19 @@ pub async fn get_block_hashes_by_block_range(
     start_block: i64,
     end_block: i64,
 ) -> Result<Vec<String>, Error> {
-    let block_hashes = sqlx::query_scalar!(
+    let block_hashes = sqlx::query_scalar(
         r#"
         SELECT block_hash
         FROM blockheaders
         WHERE number BETWEEN $1 AND $2
         "#,
-        start_block,
-        end_block
     )
+    .bind(start_block)
+    .bind(end_block)
     .fetch_all(&db.db_connection().pool)
     .await?;
 
-    Ok(block_hashes.into_iter().flatten().collect())
+    Ok(block_hashes)
 }
 
 pub async fn get_block_headers_by_block_range(
@@ -356,14 +358,13 @@ pub async fn update_job_result(
 pub async fn latest_block_number(
     db: Arc<IndexerDbConnection>,
 ) -> Result<Option<BlockHeaderSubset>, Error> {
-    let block = sqlx::query_as!(
-        BlockHeaderSubset,
+    let block: Option<BlockHeaderSubset> = sqlx::query_as(
         r#"
         SELECT number, timestamp, base_fee_per_gas
         FROM blockheaders 
         ORDER BY number DESC 
         LIMIT 1
-        "#
+        "#,
     )
     .fetch_optional(&db.db_connection().pool)
     .await?;

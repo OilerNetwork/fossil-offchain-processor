@@ -16,8 +16,8 @@ services:
       - NETWORK=${NETWORK}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
     depends_on:
-      migration:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
 
   db:
     image: postgres:16-alpine
@@ -34,16 +34,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
-  migration:
-    build:
-      context: ../..
-      dockerfile: crates/server/Dockerfile.migration
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
-    depends_on:
-      db:
-        condition: service_healthy
 
 # Using volumes here to allow db reuse. Remove if you want new states every time.
 volumes:

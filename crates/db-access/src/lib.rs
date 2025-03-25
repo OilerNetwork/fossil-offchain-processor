@@ -66,6 +66,13 @@ impl OffchainProcessorDbConnection {
         Ok(Self(db_connection))
     }
 
+    pub async fn migrate(&self) -> Result<()> {
+        sqlx::migrate!("./migrations")
+            .run(&self.db_connection().pool)
+            .await?;
+        Ok(())
+    }
+
     pub fn db_connection(&self) -> Arc<DbConnection> {
         self.0.clone()
     }
