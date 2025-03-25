@@ -1,7 +1,7 @@
+use db_access::{IndexerDbConnection, OffchainProcessorDbConnection};
 use dotenv::dotenv;
 use server::create_app;
-use sqlx::PgPool;
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 use tracing::info;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 
@@ -9,8 +9,10 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 async fn main() -> Result<(), Box<dyn Error>> {
     dotenv().ok();
 
-    let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
-    let app = create_app(pool).await;
+    let offchain_processor_db = Arc::new(OffchainProcessorDbConnection::from_env().await?);
+    let indexer_db = Arc::new(IndexerDbConnection::from_env().await?);
+
+    let app = create_app(offchain_processor_db, indexer_db).await;
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
 
     let fmt_layer = fmt::layer()

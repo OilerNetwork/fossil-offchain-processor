@@ -1,13 +1,16 @@
+use std::sync::Arc;
+
 use crate::models::{temp_to_block_header, JobRequest, JobStatus};
 use crate::models::{
     BlockHeader as DbBlockHeader, BlockHeaderSubset, TempBlockHeader, Transaction,
 };
+use crate::{IndexerDbConnection, OffchainProcessorDbConnection};
 use eth_rlp_types::BlockHeader;
 use eyre::Result;
-use sqlx::{types::BigDecimal, Error, PgPool};
+use sqlx::{types::BigDecimal, Error};
 
 pub async fn get_transactions_by_block_number(
-    pool: &PgPool,
+    db: Arc<IndexerDbConnection>,
     block_number: i64,
 ) -> Result<Vec<Transaction>, Error> {
     let transactions = sqlx::query_as!(
@@ -20,14 +23,14 @@ pub async fn get_transactions_by_block_number(
         "#,
         block_number
     )
-    .fetch_all(pool)
+    .fetch_all(&db.db_connection().pool)
     .await?;
 
     Ok(transactions)
 }
 
 pub async fn get_base_fees_between_blocks(
-    pool: &PgPool,
+    db: Arc<IndexerDbConnection>,
     start_block: i64,
     end_block: i64,
 ) -> Result<Vec<BlockHeaderSubset>, Error> {
@@ -42,14 +45,14 @@ pub async fn get_base_fees_between_blocks(
         start_block,
         end_block
     )
-    .fetch_all(pool)
+    .fetch_all(&db.db_connection().pool)
     .await?;
 
     Ok(headers)
 }
 
 pub async fn get_avg_base_fee(
-    pool: &PgPool,
+    db: Arc<IndexerDbConnection>,
     start_block: i64,
     end_block: i64,
 ) -> Result<Option<BigDecimal>, Error> {
@@ -62,14 +65,14 @@ pub async fn get_avg_base_fee(
         start_block,
         end_block
     )
-    .fetch_one(pool)
+    .fetch_one(&db.db_connection().pool)
     .await?;
 
     Ok(avg_base_fee)
 }
 
 pub async fn get_base_fee_volatility(
-    pool: &PgPool,
+    db: Arc<IndexerDbConnection>,
     start_block: i64,
     end_block: i64,
 ) -> Result<Option<BigDecimal>, Error> {
@@ -82,13 +85,17 @@ pub async fn get_base_fee_volatility(
         start_block,
         end_block
     )
-    .fetch_one(pool)
+    .fetch_one(&db.db_connection().pool)
     .await?;
 
     Ok(volatility)
 }
 
-pub async fn get_reserve_price(pool: &PgPool, x: i64, y: i64) -> Result<Option<BigDecimal>, Error> {
+pub async fn get_reserve_price(
+    db: Arc<IndexerDbConnection>,
+    x: i64,
+    y: i64,
+) -> Result<Option<BigDecimal>, Error> {
     let reserve_price = sqlx::query_scalar!(
         r#"
         WITH twap AS (
@@ -107,14 +114,14 @@ pub async fn get_reserve_price(pool: &PgPool, x: i64, y: i64) -> Result<Option<B
         x,
         y
     )
-    .fetch_one(pool)
+    .fetch_one(&db.db_connection().pool)
     .await?;
 
     Ok(reserve_price)
 }
 
 pub async fn get_twap_and_volatility(
-    pool: &PgPool,
+    db: Arc<IndexerDbConnection>,
     x: i64,
     y: i64,
 ) -> Result<(Option<BigDecimal>, Option<BigDecimal>), Error> {
@@ -128,14 +135,14 @@ pub async fn get_twap_and_volatility(
         x,
         y
     )
-    .fetch_one(pool)
+    .fetch_one(&db.db_connection().pool)
     .await?;
 
     Ok((row.twap, row.volatility))
 }
 
 pub async fn get_block_by_number(
-    pool: &PgPool,
+    db: Arc<IndexerDbConnection>,
     block_number: i64,
 ) -> Result<Option<DbBlockHeader>, Error> {
     let block: Option<DbBlockHeader> = sqlx::query_as!(
@@ -157,14 +164,14 @@ pub async fn get_block_by_number(
         "#,
         block_number
     )
-    .fetch_optional(pool)
+    .fetch_optional(&db.db_connection().pool)
     .await?;
 
     Ok(block)
 }
 
 pub async fn get_block_headers_by_time_range(
-    pool: &PgPool,
+    db: Arc<IndexerDbConnection>,
     start_timestamp: String,
     end_timestamp: String,
 ) -> Result<Vec<DbBlockHeader>, Error> {
@@ -210,14 +217,14 @@ pub async fn get_block_headers_by_time_range(
         start_ts,
         end_ts
     )
-    .fetch_all(pool)
+    .fetch_all(&db.db_connection().pool)
     .await?;
 
     Ok(headers)
 }
 
 pub async fn create_job_request(
-    pool: &PgPool,
+    db: Arc<OffchainProcessorDbConnection>,
     job_id: &str,
     status: JobStatus,
 ) -> Result<(), sqlx::Error> {
@@ -226,14 +233,14 @@ pub async fn create_job_request(
         job_id,
         status.to_string()
     )
-    .execute(pool)
+    .execute(&db.db_connection().pool)
     .await?;
 
     Ok(())
 }
 
 pub async fn get_job_request(
-    pool: &PgPool,
+    db: Arc<OffchainProcessorDbConnection>,
     job_id: &str,
 ) -> Result<Option<JobRequest>, sqlx::Error> {
     sqlx::query_as!(
@@ -249,12 +256,12 @@ pub async fn get_job_request(
         "#,
         job_id
     )
-    .fetch_optional(pool)
+    .fetch_optional(&db.db_connection().pool)
     .await
 }
 
 pub async fn update_job_status(
-    pool: &PgPool,
+    db: Arc<OffchainProcessorDbConnection>,
     job_id: &str,
     status: JobStatus,
     result: Option<serde_json::Value>,
@@ -269,14 +276,14 @@ pub async fn update_job_status(
         result,
         job_id
     )
-    .execute(pool)
+    .execute(&db.db_connection().pool)
     .await?;
 
     Ok(())
 }
 
 pub async fn get_block_hashes_by_block_range(
-    pool: &PgPool,
+    db: Arc<IndexerDbConnection>,
     start_block: i64,
     end_block: i64,
 ) -> Result<Vec<String>, Error> {
@@ -289,34 +296,33 @@ pub async fn get_block_hashes_by_block_range(
         start_block,
         end_block
     )
-    .fetch_all(pool)
+    .fetch_all(&db.db_connection().pool)
     .await?;
 
-    Ok(block_hashes)
+    Ok(block_hashes.into_iter().flatten().collect())
 }
 
 pub async fn get_block_headers_by_block_range(
-    pool: &PgPool,
+    db: Arc<IndexerDbConnection>,
     start_block: i64,
     end_block: i64,
 ) -> Result<Vec<BlockHeader>, Error> {
-    let temp_headers = sqlx::query_as!(
-        TempBlockHeader,
+    let temp_headers: Vec<TempBlockHeader> = sqlx::query_as(
         r#"
         SELECT block_hash, number, gas_limit, gas_used, nonce, 
                transaction_root, receipts_root, state_root, 
                base_fee_per_gas, parent_hash, miner, logs_bloom, 
-               difficulty, totaldifficulty, sha3_uncles, "timestamp", 
+               difficulty, totaldifficulty, sha3_uncles, timestamp, 
                extra_data, mix_hash, withdrawals_root, 
                blob_gas_used, excess_blob_gas, parent_beacon_block_root
         FROM blockheaders
         WHERE number BETWEEN $1 AND $2
         ORDER BY number ASC
         "#,
-        start_block,
-        end_block
     )
-    .fetch_all(pool)
+    .bind(start_block)
+    .bind(end_block)
+    .fetch_all(&db.db_connection().pool)
     .await?;
 
     // Convert TempBlockHeader to BlockHeader
@@ -326,7 +332,7 @@ pub async fn get_block_headers_by_block_range(
 }
 
 pub async fn update_job_result(
-    pool: &PgPool,
+    db: Arc<OffchainProcessorDbConnection>,
     job_id: &str,
     status: &str,
     result: serde_json::Value,
@@ -341,13 +347,15 @@ pub async fn update_job_result(
         result,
         job_id
     )
-    .execute(pool)
+    .execute(&db.db_connection().pool)
     .await?;
 
     Ok(())
 }
 
-pub async fn latest_block_number(pool: &PgPool) -> Result<Option<BlockHeaderSubset>, Error> {
+pub async fn latest_block_number(
+    db: Arc<IndexerDbConnection>,
+) -> Result<Option<BlockHeaderSubset>, Error> {
     let block = sqlx::query_as!(
         BlockHeaderSubset,
         r#"
@@ -357,7 +365,7 @@ pub async fn latest_block_number(pool: &PgPool) -> Result<Option<BlockHeaderSubs
         LIMIT 1
         "#
     )
-    .fetch_optional(pool)
+    .fetch_optional(&db.db_connection().pool)
     .await?;
 
     Ok(block)
