@@ -2,7 +2,7 @@ use super::volatility::calculate_volatility;
 use db_access::models::BlockHeader;
 use eyre::Result;
 
-// Calculate cap level using volatility, alpha, and k in BPs
+// Calculate cap level using volatility, alpha, and k
 // @param volatility: volatility of returns in BPs (e.g., 3333 for 33.33%)
 // @param k: strike level in BPS (e.g., -2500 for -25%)
 // @param alpha: target percentage of max returns in BPS (e.g., 5000 for 50%)
@@ -22,5 +22,5 @@ pub async fn calculate_cap_level(alpha: f64, k: f64, blocks: Vec<BlockHeader>) -
 
     let cap_level = (lambda - k) / (alpha * (1.0 + k));
 
-    Ok((cap_level * 10_000.0).floor())
+    Ok(cap_level)
 }
