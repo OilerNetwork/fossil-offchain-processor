@@ -427,8 +427,8 @@ async fn fetch_headers(
         )
     );
 
-    let alpha = payload.params.alpha as u128;
-    let k = payload.params.k as i128;
+    let alpha = payload.params.alpha;
+    let k = payload.params.k;
 
     match (twap_headers, cap_level_headers, reserve_price_headers) {
         (Ok(twap), Ok(cap_level), Ok(reserve)) => {
