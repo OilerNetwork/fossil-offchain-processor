@@ -268,7 +268,7 @@ async fn process_job(
 
             let result = PitchLakeResult {
                 twap: U256::from(twap as u128),
-                cap_level: cap_level as u128,
+                cap_level: (cap_level * 10_000.0) as u128,
                 reserve_price: U256::from(reserve_price as u128),
             };
 
