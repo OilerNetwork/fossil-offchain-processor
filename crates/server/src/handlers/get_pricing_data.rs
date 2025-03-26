@@ -316,6 +316,8 @@ async fn process_job(
                 vault_address: payload.client_info.vault_address,
                 timestamp: payload.client_info.timestamp.to_string(),
                 program_id,
+                alpha: payload.params.alpha,
+                k: payload.params.k,
             };
 
             tracing::debug!(
@@ -425,8 +427,8 @@ async fn fetch_headers(
         )
     );
 
-    let alpha = payload.params.alpha as f64;
-    let k = payload.params.k as f64;
+    let alpha = payload.params.alpha as u128;
+    let k = payload.params.k as i128;
 
     match (twap_headers, cap_level_headers, reserve_price_headers) {
         (Ok(twap), Ok(cap_level), Ok(reserve)) => {
