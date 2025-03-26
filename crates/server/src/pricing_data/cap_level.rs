@@ -11,14 +11,14 @@ use eyre::Result;
 // - λ = 2.33 x volatility: 0% <= λ < ∞%
 // - k: -100.00% < k < ∞%
 // - a: 0.00% < a <= 100%
-pub async fn calculate_cap_level(alpha: f64, k: f64, blocks: Vec<BlockHeader>) -> Result<f64> {
+pub async fn calculate_cap_level(alpha: u128, k: i128, blocks: Vec<BlockHeader>) -> Result<f64> {
     // Calculate volatility
     let volatility = calculate_volatility(blocks).await?;
 
     // Get percentage values for each variable
     let lambda = 2.33 * volatility;
-    let alpha = alpha / 10_000.0;
-    let k = k / 10_000.0;
+    let alpha = (alpha as f64) / 10_000.0;
+    let k = (k as f64) / 10_000.0;
 
     let cap_level = (lambda - k) / (alpha * (1.0 + k));
 
