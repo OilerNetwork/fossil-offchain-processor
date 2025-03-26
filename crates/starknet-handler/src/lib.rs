@@ -26,7 +26,7 @@ pub struct JobRequest {
 #[derive(Debug)]
 pub struct PitchLakeResult {
     pub twap: U256,
-    pub volatility: u128,
+    pub cap_level: u128,
     pub reserve_price: U256,
 }
 
@@ -111,12 +111,12 @@ impl FossilStarknetAccount {
 
         // Create a context string for logging
         let context = format!(
-            "client_address={:#064x}, vault_address={:#064x}, timestamp={}, twap={}, volatility={}, reserve_price={}",
+            "client_address={:#064x}, vault_address={:#064x}, timestamp={}, twap={}, cap_level={}, reserve_price={}",
             client_address,
             job_request.vault_address,
             job_request.timestamp,
             result.twap,
-            result.volatility,
+            result.cap_level,
             result.reserve_price
         );
 
@@ -225,7 +225,7 @@ pub fn format_pitchlake_calldata(
     let pitch_lake_result_felts = vec![
         Felt::from(pitch_lake_result.twap.low()),
         Felt::from(pitch_lake_result.twap.high()),
-        Felt::from(pitch_lake_result.volatility),
+        Felt::from(pitch_lake_result.cap_level),
         Felt::from(pitch_lake_result.reserve_price.low()),
         Felt::from(pitch_lake_result.reserve_price.high()),
         // Mocked proof data
@@ -310,7 +310,7 @@ mod tests {
 
         let pitch_lake_result = PitchLakeResult {
             twap: U256::from(5000_u64),           // Random TWAP value
-            volatility: 100,                      // Random volatility value
+            cap_level: 100,                       // Random cap_level value
             reserve_price: U256::from(20000_u64), // Random reserve price value
         };
 

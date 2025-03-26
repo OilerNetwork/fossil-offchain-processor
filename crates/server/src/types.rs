@@ -6,8 +6,10 @@ use starknet_crypto::Felt;
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct PitchLakeJobRequestParams {
     pub twap: (i64, i64),
-    pub volatility: (i64, i64),
+    pub cap_level: (i64, i64),
     pub reserve_price: (i64, i64),
+    pub alpha: i64,
+    pub k: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
