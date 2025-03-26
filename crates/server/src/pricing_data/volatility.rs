@@ -62,7 +62,7 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
     df = drop_nulls(&df, "X_returns")?;
 
     // (NOT NEEDED)
-    //df = compute_volatilitys(df, vol_window)?;
+    //df = _compute_volatilitys(df, vol_window)?;
     //df = drop_nulls(&df, "volatility_X")?;
 
     // 5. Get the final volatility value by calculating the standard deviation of the final vol_window chunk
@@ -71,7 +71,7 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
         .datetime()?
         .max()
         .ok_or_else(|| err!("No date values"))?;
-    let min_cutoff = max_date - (vol_window as i64 * 3600_000); // convert hours to milliseconds
+    let min_cutoff = max_date - (vol_window as i64 * 3600 * 1000); // convert hours to milliseconds
 
     // Lazy filter for date >= min_cutoff
     let lazy_df = df
@@ -290,7 +290,7 @@ fn calculate_returns(df: DataFrame, period: usize) -> Result<DataFrame> {
 // Rolling volatility over 'window_size' rows on "X_returns" column.
 // By default, Polars uses `ddof=1` for rolling_std if you don't specify it.
 // That corresponds to the sample standard deviation.
-fn compute_volatilitys(df: DataFrame, window_size: usize) -> Result<DataFrame> {
+fn _compute_volatilitys(df: DataFrame, window_size: usize) -> Result<DataFrame> {
     if df.height() < window_size {
         return Err(err!(
             "Insufficient rows: need at least {} for volatility, got {}.",
