@@ -11,7 +11,7 @@ use super::utils::hex_string_to_f64;
 ///    - For a 3 hour vault, we will pass 5 * 3 = 15 hours of block headers
 ///    - This means we will use 15 * (1/5) = 3 hour TWAPs to calculate 3 hour returns
 ///    - Then we will find the volatility of returns over the final 15 * (3/5) = 9 hours
-pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<u128> {
+pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64> {
     if block_headers.is_empty() {
         return Err(err!("No block headers provided."));
     }
@@ -91,7 +91,7 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<u12
         .std(1)
         .ok_or_else(|| eyre::eyre!("No data to compute volatility"))?;
 
-    Ok((10_000.0 * volatility) as u128)
+    Ok(10_000.0 * volatility)
 }
 
 /// Replaces the 'timestamp' column with a 'date' column in a DataFrame.
