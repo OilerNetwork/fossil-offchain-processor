@@ -61,8 +61,9 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
     df = calculate_returns(df, twap_window)?;
     df = drop_nulls(&df, "X_returns")?;
 
-    df = compute_volatilitys(df, vol_window)?;
-    df = drop_nulls(&df, "volatility_X")?;
+    // (NOT NEEDED)
+    //df = compute_volatilitys(df, vol_window)?;
+    //df = drop_nulls(&df, "volatility_X")?;
 
     // 5. Get the final volatility value by calculating the standard deviation of the final vol_window chunk
     let max_date = df
