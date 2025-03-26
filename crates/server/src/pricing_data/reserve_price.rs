@@ -17,7 +17,10 @@ use rand_distr::Distribution;
 use statrs::distribution::Binomial;
 use std::f64::consts::PI;
 
-pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<f64> {
+pub async fn calculate_reserve_price(
+    block_headers: Vec<BlockHeader>,
+    cap_level: f64,
+) -> Result<f64> {
     if block_headers.is_empty() {
         tracing::error!("No block headers provided.");
         return Err(eyre::eyre!("No block headers provided."));
@@ -59,7 +62,6 @@ pub async fn calculate_reserve_price(block_headers: Vec<BlockHeader>) -> Result<
 
     let num_paths = 15000;
     let n_periods = 720;
-    let cap_level = 0.3;
     let risk_free_rate = 0.05;
 
     let mut df = drop_nulls(&df, "TWAP_7d")?;
