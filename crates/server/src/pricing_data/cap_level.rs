@@ -3,7 +3,7 @@ use db_access::models::BlockHeader;
 use eyre::Result;
 
 // Calculate cap level using volatility, alpha, and k
-// @param volatility: volatility of returns in BPs (e.g., 3333 for 33.33%)
+// @param volatility: volatility of returns as a decimal (e.g., 0.33 is 33%)
 // @param k: strike level in BPS (e.g., -2500 for -25%)
 // @param alpha: target percentage of max returns in BPS (e.g., 5000 for 50%)
 
