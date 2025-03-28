@@ -440,12 +440,11 @@ async fn fetch_headers(
             // Get twap future
             let twap = calculate_twap(twap);
 
-            // Get cap level future
-            let cap_level = calculate_cap_level(alpha, k, cap_level);
             // Get cap level value
-            let cap_level_result = cap_level.await;
+            let cap_level = calculate_cap_level(alpha, k, cap_level).await;
+
             // Get reserve price future
-            let reserve_price = match cap_level_result {
+            let reserve_price = match cap_level {
                 Ok(val) => calculate_reserve_price(reserve, val), // val is f64 and Copy
                 Err(e) => {
                     tracing::error!("No cap level to pass to reserve price {}.", e);
@@ -453,8 +452,8 @@ async fn fetch_headers(
                 }
             };
 
-            // Convert cap level back into a future
-            let cap_level = async { cap_level_result }; // pseudo-future to satisfy `join!`
+            // Convert cap level back into pseudo-future to satisfy `join!`
+            let cap_level = async { cap_level };
 
             let results = join!(twap, cap_level, reserve_price);
 
