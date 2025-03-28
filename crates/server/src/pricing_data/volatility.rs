@@ -4,19 +4,20 @@ use polars::prelude::*;
 
 use super::utils::hex_string_to_f64;
 
-/// Calculates the volatility of the returns over the final window of the data.
-/// Mainnet/ZKVM will use hardcoded 30d (TWAP/returns) and 90d (volatility) values;
-/// however, testnet will by dynamic, allowing for shorter vaults to use this service
-///  1. Derive (twap_window, vol_window) from total timespan
-///    - For a 3 hour vault, we will pass 5 * 3 = 15 hours of block headers
-///    - This means we will use 15 * (1/5) = 3 hour TWAPs to calculate 3 hour returns
-///    - Then we will find the volatility of returns over the final 15 * (3/5) = 9 hours
+/// Calculates the volatility of returns over a window.
+///
+/// Mainnet/zkvm (30d vaults): 1: Calculate 30d TWAPs. 2: Calculate 30d returns. 3: Calculate 90d volatility.
+/// Testnet (any length vaults): First, calculate TWAP/return/volatility window for dynamic vaults, then calculate volatility.
+///
+/// - For a 3 hour vault, we will pass 5 * 3 = 15 hours of block headers
+/// - TWAP & return window: 15 * (1/5) = 3 hours
+/// - Volatility window: 15 * (3/5) = 9 hours
 pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64> {
     if block_headers.is_empty() {
         return Err(err!("No block headers provided."));
     }
 
-    // 1. Prepare DataFrame
+    // Prepare DataFrame
     let mut timestamps = Vec::new();
     let mut base_fees = Vec::new();
 
@@ -38,15 +39,19 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
         Series::new("base_fee".into(), base_fees),
     ])?;
 
-    // 2. Convert timestamps to dates & group by 1h avgs
+    // Convert timestamps to dates
     df = replace_timestamp_with_date(df)?;
-    df = group_by_1h_intervals(df)?;
 
-    // 3. Compute dynamic windows
-    let (twap_window, vol_window) = compute_twap_and_vol_windows(&timestamps);
-    if twap_window == 0 || vol_window == 0 {
-        return Err(err!("Not enough timestamps or invalid time range."));
-    }
+    // Group by 1-hour intervals for 30d vaults (or by 1-minute for < 30d vaults)
+    df = group_by_1h_or_1m_intervals(df)?;
+
+    // TWAP window is 20% of the data size (30d max)
+    let twap_window = ((df.height() as f64) * 0.2)
+        .floor()
+        .min(24.0 * 30.0)
+        .max(1.0) as usize;
+    // Volatility window is 3x the TWAP window (90d max)
+    let vol_window = 3 * twap_window;
 
     tracing::info!(
         "Using twap_window={} hours, vol_window={} hours",
@@ -54,45 +59,36 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
         vol_window
     );
 
-    // 4. TWAP & returns & volatility
+    // 1. Calculate rolling TWAPs
     df = calculate_twaps(df, twap_window)?;
     df = drop_nulls(&df, "TWAP_X")?;
 
+    // 2. Calculate rolling returns
     df = calculate_returns(df, twap_window)?;
     df = drop_nulls(&df, "X_returns")?;
 
-    // (NOT NEEDED)
-    //df = _compute_volatilitys(df, vol_window)?;
-    //df = drop_nulls(&df, "volatility_X")?;
+    // 3. Calculate volatility over final `vol_window` rows (standard deviation of returns)
+    let start_idx = df.height().saturating_sub(vol_window);
+    let final_chunk = df.slice(start_idx as i64, vol_window);
 
-    // 5. Get the final volatility value by calculating the standard deviation of the final vol_window chunk
-    let max_date = df
-        .column("date")?
-        .datetime()?
-        .max()
-        .ok_or_else(|| err!("No date values"))?;
-    let min_cutoff = max_date - (vol_window as i64 * 3600 * 1000); // convert hours to milliseconds
-
-    // Lazy filter for date >= min_cutoff
-    let lazy_df = df
-        .lazy()
-        .filter(col("date").gt(lit(min_cutoff)))
-        .collect()?;
-
-    if lazy_df.height() == 0 {
+    if final_chunk.height() == 0 {
         return Err(err!(
-            "No rows left after filtering to final volatility window."
+            "No rows left after slicing to final volatility window."
         ));
     }
 
-    // Compute std dev of "30d_returns" in the final chunk (volatility)
-    let volatility = lazy_df
+    // Compute standard deviation of returns in that final chunk
+    let volatility = final_chunk
         .column("X_returns")?
         .f64()?
-        .std(1)
+        .std(1) // sample std dev
         .ok_or_else(|| eyre::eyre!("No data to compute volatility"))?;
 
-    Ok(10_000.0 * volatility)
+    Ok(volatility)
+    // (NOT NEEDED)
+    // Compute rolling volatility
+    //df = _compute_volatilitys(df, vol_window)?;
+    //df = drop_nulls(&df, "volatility_X")?;
 }
 
 /// Replaces the 'timestamp' column with a 'date' column in a DataFrame.
@@ -156,12 +152,42 @@ fn replace_timestamp_with_date(df: DataFrame) -> Result<DataFrame> {
     Ok(df)
 }
 
-/// Groups the DataFrame by 1-hour intervals and aggregates specified columns.
+/// Groups the DataFrame by 1-hour intervals for 30d vaults and aggregates specified columns.
+/// - For shorter vaults, the data is grouped by 1-minute intervals.
 ///
-/// This function takes a DataFrame and groups it by 1-hour intervals based on the 'date' column.
 /// It then calculates the mean values for 'base_fee' within each interval.
-fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
+fn group_by_1h_or_1m_intervals(df: DataFrame) -> Result<DataFrame> {
     tracing::debug!("DataFrame shape before grouping: {:?}", df.shape());
+    // Calculate the total span in days
+    let min_ts = df
+        .column("date")?
+        .datetime()?
+        .min()
+        .ok_or_else(|| err!("No min timestamp"))?;
+    let max_ts = df
+        .column("date")?
+        .datetime()?
+        .max()
+        .ok_or_else(|| err!("No max timestamp"))?;
+
+    let span_millis = max_ts - min_ts;
+    let span_days = (span_millis as f64) / (1000.0 * 60.0 * 60.0 * 24.0);
+
+    tracing::debug!("DataFrame length in days: {:?}", span_days);
+
+    // Decide grouping interval (Tolerance to account for block gaps)
+    let group_by = if span_days < 149.0 {
+        tracing::info!(
+            "Using 1-minute grouping (data span = {:.2} days)",
+            span_days
+        );
+        "1m"
+    } else {
+        tracing::info!("Using 1-hour grouping (data span = {:.2} days)", span_days);
+        "1h"
+    };
+
+    let (every, period) = (Duration::parse(group_by), Duration::parse(group_by));
 
     // Add a warning for very large datasets
     if df.height() > 10000 {
@@ -177,8 +203,8 @@ fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
             col("date"),
             [],
             DynamicGroupOptions {
-                every: Duration::parse("1h"),
-                period: Duration::parse("1h"),
+                every,
+                period,
                 offset: Duration::parse("0"),
                 ..Default::default()
             },
@@ -188,7 +214,7 @@ fn group_by_1h_intervals(df: DataFrame) -> Result<DataFrame> {
     {
         Ok(result) => result,
         Err(e) => {
-            tracing::error!("Failed to group data by 1h intervals: {:?}", e);
+            tracing::error!("Failed to group data by {:?} intervals: {:?}", group_by, e);
             return Err(err!("Failed to group data: {}", e));
         }
     };
@@ -208,44 +234,6 @@ fn drop_nulls(df: &DataFrame, column_name: &str) -> Result<DataFrame> {
         .collect()?;
 
     Ok(df)
-}
-
-/// Divides total data range into 5 parts:
-///   1 part  -> TWAP window
-///   3 parts -> final "vol window"
-///   1 part  -> leftover warm-up
-/// Returns (twap_window_hours, vol_window_hours).
-fn compute_twap_and_vol_windows(hex_timestamps: &[String]) -> (usize, usize) {
-    let parsed: Vec<i64> = hex_timestamps
-        .iter()
-        .filter_map(|s| i64::from_str_radix(s.trim_start_matches("0x"), 16).ok())
-        .collect();
-
-    if parsed.len() < 2 {
-        return (0, 0);
-    }
-
-    let min_ts = *parsed.iter().min().unwrap();
-    let max_ts = *parsed.iter().max().unwrap();
-    let span_secs = max_ts - min_ts;
-    if span_secs <= 0 {
-        return (0, 0);
-    }
-
-    let span_hours = (span_secs as f64) / 3600.0;
-
-    // 1 chunk = TWAP window, 3 chunks = vol window, 1 leftover chunk
-    let twap_f = span_hours / 5.0; // "30d" portion
-    let vol_f = twap_f * 3.0; // "90d" portion in that ratio
-
-    let twap_window = twap_f.floor() as usize;
-    let vol_window = vol_f.floor() as usize;
-
-    // At most 30 days for each window
-    let twap_window = twap_window.min(24 * 30);
-    let vol_window = vol_window.min(24 * 30 * 3);
-
-    (twap_window, vol_window)
 }
 
 // Calculates the Time-Weighted Average Price (TWAP) over a specified window size.
