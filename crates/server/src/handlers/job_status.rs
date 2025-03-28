@@ -115,9 +115,9 @@ mod tests {
 
         // Create a completed job with a sample result
         let sample_result = json!({
-            "twap": 12345.67,
-            "volatility": 2345.89,
-            "reserve_price": 3456.78
+            "twap": 12345,
+            "cap_level": 2345,
+            "reserve_price": 3456
         });
 
         ctx.create_job_with_result(job_id, JobStatus::Completed, sample_result.clone())
