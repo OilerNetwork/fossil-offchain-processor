@@ -46,10 +46,8 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
     df = group_by_1h_or_1m_intervals(df)?;
 
     // TWAP window is 20% of the data size (30d max)
-    let twap_window = ((df.height() as f64) * 0.2)
-        .floor()
-        .min(24.0 * 30.0)
-        .max(1.0) as usize;
+    let twap_window = ((df.height() as f64) * 0.2).floor().clamp(1.0, 24.0 * 30.0) as usize;
+
     // Volatility window is 3x the TWAP window (90d max)
     let vol_window = 3 * twap_window;
 
