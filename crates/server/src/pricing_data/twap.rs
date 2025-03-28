@@ -1,20 +1,40 @@
 use super::utils::hex_string_to_f64;
 use db_access::models::BlockHeader;
-use eyre::{anyhow, Result};
+use eyre::{anyhow as err, eyre, Result};
+use polars::prelude::*;
 
-pub async fn calculate_twap(headers: Vec<BlockHeader>) -> Result<f64> {
-    if headers.is_empty() {
-        return Err(anyhow!("The provided block headers are empty."));
+pub async fn calculate_twap(block_headers: Vec<BlockHeader>) -> Result<f64> {
+    if block_headers.is_empty() {
+        return Err(err!("No block headers provided."));
     }
 
-    let total_base_fee = headers.iter().try_fold(0.0, |acc, header| -> Result<f64> {
-        let base_fee = header
-            .base_fee_per_gas
-            .clone()
-            .unwrap_or_else(|| "0x0".to_string());
-        let fee = hex_string_to_f64(&base_fee)?;
-        Ok(acc + fee)
-    })?;
+    // Prepare DataFrame
+    let mut timestamps = Vec::new();
+    let mut base_fees = Vec::new();
 
-    Ok(total_base_fee / headers.len() as f64)
+    for header in block_headers {
+        let timestamp = header
+            .timestamp
+            .ok_or_else(|| err!("No timestamp in header"))?;
+        let base_fee = hex_string_to_f64(
+            &header
+                .base_fee_per_gas
+                .ok_or_else(|| err!("No base fee in header"))?,
+        )?;
+        timestamps.push(timestamp);
+        base_fees.push(base_fee);
+    }
+
+    let df = DataFrame::new(vec![
+        Series::new("timestamp".into(), timestamps.clone()),
+        Series::new("base_fee".into(), base_fees),
+    ])?;
+
+    let mean = df
+        .column("base_fee")?
+        .f64()?
+        .mean()
+        .ok_or_else(|| eyre!("Failed to compute mean"))?;
+
+    Ok(mean)
 }
