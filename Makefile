@@ -88,13 +88,13 @@ clippy: ## Run clippy linter with project-specific settings.
 
 .PHONY: lint-codespell
 lint-codespell: ensure-codespell ## Check for spelling mistakes.
-	codespell
+	python3 -m codespell
 
 .PHONY: ensure-codespell
 ensure-codespell:
-	@if ! command -v codespell &> /dev/null; then \
-		echo "codespell not found. Please install it with 'pip install codespell'" >&2; \
-		exit 1; \
+	@if ! python3 -m pip list | grep -q codespell; then \
+		echo "codespell not found. Installing with pip..." >&2; \
+		python3 -m pip install codespell; \
 	fi
 
 .PHONY: lint

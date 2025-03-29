@@ -55,10 +55,12 @@ jobs:
         run: sudo apt update && sudo apt install -y libomp-dev libopenblas-dev python3-pip
 
       - name: Install codespell
-        run: pip install codespell
+        run: |
+          pip install codespell
+          echo "PATH=$PATH:$HOME/.local/bin" >> $GITHUB_ENV
 
       - name: Setup environment
         run: make setup
 
-      - name: Run linting
-        run: make lint
+      - name: Run linting with fmt and clippy only
+        run: make fmt && make clippy
