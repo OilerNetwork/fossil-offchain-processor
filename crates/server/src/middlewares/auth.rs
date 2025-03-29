@@ -26,7 +26,8 @@ pub async fn simple_apikey_auth(
             tracing::info!("Attempting authentication with API key");
             tracing::debug!("Received API key: {}", api_key_str);
             // Access the database connection from the state.
-            let matching_api_key = find_api_key(&state.db.pool, api_key_str.to_string()).await;
+            let matching_api_key =
+                find_api_key(state.offchain_processor_db, api_key_str.to_string()).await;
 
             return match matching_api_key {
                 Ok(_) => {

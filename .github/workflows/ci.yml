@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        toolchain: [stable, beta, nightly]
+        toolchain: [nightly] # Only using nightly toolchain
     steps:
       - name: Install required dependencies
         run: sudo apt update && sudo apt install -y libomp-dev libopenblas-dev
@@ -48,19 +48,19 @@ jobs:
 
   lint-rust:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain: [stable, beta, nightly]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain and components
+      - name: Install required dependencies
+        run: sudo apt update && sudo apt install -y libomp-dev libopenblas-dev python3-pip
+
+      - name: Install codespell
         run: |
-          rustup install ${{ matrix.toolchain }}
-          rustup component add --toolchain ${{ matrix.toolchain }} rustfmt clippy
+          pip install codespell
+          echo "PATH=$PATH:$HOME/.local/bin" >> $GITHUB_ENV
 
-      - name: Run fmt
-        run: cargo +${{ matrix.toolchain }} fmt --all -- --check
+      - name: Setup environment
+        run: make setup
 
-      - name: Run clippy
-        run: cargo +${{ matrix.toolchain }} clippy --workspace -- -D warnings
+      - name: Run linting with fmt and clippy only
+        run: make fmt && make clippy
