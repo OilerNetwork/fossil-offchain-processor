@@ -4,6 +4,65 @@
 
 ![Fossil v0.3 sequence diagram](./readme/Fossil%20v0.3%20sequence%20diagram.png)
 
+## Development
+
+### Setup
+
+To set up the development environment, run:
+
+```bash
+make setup
+```
+
+This will install all required dependencies, including Rust nightly.
+
+### Building
+
+To build the project in release mode:
+```bash
+make build
+```
+
+For debug mode:
+```bash
+make build-debug
+```
+
+### Testing
+
+Run all tests:
+```bash
+make test
+```
+
+### Linting
+
+Format code and run all linters:
+```bash
+make lint
+```
+
+Individual linting commands:
+```bash
+make fmt        # Format code with rustfmt
+make clippy     # Run clippy linter
+make codespell  # Check for spelling mistakes
+```
+
+### Pull Request Preparation
+
+Before submitting a PR, run:
+```bash
+make pr
+```
+
+This will run all linters and tests to ensure your code is ready for review.
+
+For more available commands:
+```bash
+make help
+```
+
 ## Usage
 
 ```bash
