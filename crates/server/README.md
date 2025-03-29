@@ -32,6 +32,6 @@ Note that you should run this command in the root of the workspace.
 
 ## Running the server via docker compose in deployment
 
-In deployment, you can re-use most of what's in the local setup for `docker-compose.yml`, however you might want to remove the `db` service as you might prefer that to be hosted at some other location with better access to available resources.
+In deployment, you can reuse most of what's in the local setup for `docker-compose.yml`, however you might want to remove the `db` service as you might prefer that to be hosted at some other location with better access to available resources.
 
 You might also want to remove the `migration` service if you prefer migrations to be more manual.
