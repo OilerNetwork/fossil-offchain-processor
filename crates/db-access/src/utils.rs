@@ -1,4 +1,4 @@
-use eth_rlp_verify::block_header::BlockHeader;
+use eth_rlp_types::BlockHeader;
 use eyre::Result;
 use serde_json;
 use std::fs::File;

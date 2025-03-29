@@ -1,4 +1,4 @@
-use eth_rlp_verify::block_header::BlockHeader as EthBlockHeader;
+use eth_rlp_types::BlockHeader as EthBlockHeader;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -13,7 +13,7 @@ pub struct BlockHeader {
     pub transaction_root: Option<String>,
     pub receipts_root: Option<String>,
     pub state_root: Option<String>,
-    pub timestamp: Option<i64>,
+    pub timestamp: Option<String>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -31,11 +31,11 @@ pub struct Transaction {
     pub chain_id: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, sqlx::FromRow)]
 pub struct BlockHeaderSubset {
     pub number: i64,
     pub base_fee_per_gas: Option<String>,
-    pub timestamp: Option<i64>,
+    pub timestamp: Option<String>,
 }
 
 #[derive(sqlx::FromRow, Debug)]
@@ -44,7 +44,7 @@ pub struct ApiKey {
     pub name: Option<String>,
 }
 
-#[derive(sqlx::Type, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(sqlx::Type, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[sqlx(type_name = "TEXT")]
 pub enum JobStatus {
     Pending,
@@ -55,9 +55,9 @@ pub enum JobStatus {
 impl fmt::Display for JobStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JobStatus::Pending => write!(f, "Pending"),
-            JobStatus::Completed => write!(f, "Completed"),
-            JobStatus::Failed => write!(f, "Failed"),
+            Self::Pending => write!(f, "Pending"),
+            Self::Completed => write!(f, "Completed"),
+            Self::Failed => write!(f, "Failed"),
         }
     }
 }
@@ -100,7 +100,7 @@ pub struct TempBlockHeader {
     pub difficulty: Option<String>,
     pub totaldifficulty: Option<String>,
     pub sha3_uncles: Option<String>,
-    pub timestamp: Option<i64>, // Assuming this is stored as bigint
+    pub timestamp: Option<String>,
     pub extra_data: Option<String>,
     pub mix_hash: Option<String>,
     pub withdrawals_root: Option<String>,
@@ -136,8 +136,13 @@ pub fn temp_to_block_header(temp: TempBlockHeader) -> EthBlockHeader {
         totaldifficulty: Some(temp.totaldifficulty.unwrap_or_else(|| "0x0".to_string())),
         sha3_uncles: temp.sha3_uncles, // Option<String> (if exists)
 
-        // Convert timestamp from Option<i64> to Option<String>
-        timestamp: temp.timestamp.map(|ts| format!("0x{:x}", ts)), // Convert i64 to hex string
+        // Convert timestamp from decimal to hex string format
+        timestamp: temp.timestamp.map(|ts| {
+            // Parse the decimal string to u64, then format as hex
+            ts.parse::<u64>()
+                .map(|t| format!("0x{:x}", t))
+                .unwrap_or(ts)
+        }),
         extra_data: Some(temp.extra_data.unwrap_or_default()),
         mix_hash: Some(temp.mix_hash.unwrap_or_default()),
         withdrawals_root: Some(temp.withdrawals_root.unwrap_or_default()),

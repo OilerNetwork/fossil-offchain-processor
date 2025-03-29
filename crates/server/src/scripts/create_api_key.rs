@@ -1,6 +1,6 @@
-use db_access::{auth::add_api_key, DbConnection};
+use db_access::{auth::add_api_key, OffchainProcessorDbConnection};
 use eyre::Result;
-use std::env;
+use std::{env, sync::Arc};
 use tracing::info;
 use uuid::Uuid;
 
@@ -11,16 +11,19 @@ async fn main() -> Result<()> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    let db = DbConnection::new().await?;
+    let db = OffchainProcessorDbConnection::from_env().await?;
 
-    let name = env::args()
-        .nth(1)
-        .expect("Give a name or tag to your api key");
+    let name = match env::args().nth(1) {
+        Some(name) => name,
+        None => {
+            return Err(eyre::eyre!("Missing required argument: name"));
+        }
+    };
 
     // Generate a new API key (using UUID v4 for this example)
     let api_key = Uuid::new_v4().to_string();
 
-    add_api_key(&db.pool, api_key.clone(), name).await?;
+    add_api_key(Arc::new(db), api_key.clone(), name).await?;
 
     info!("API Key Created: {}", api_key);
 

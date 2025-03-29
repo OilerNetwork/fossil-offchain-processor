@@ -21,7 +21,7 @@ pub async fn create_api_key(
 ) -> Result<Json<ApiKeyResponse>, StatusCode> {
     let api_key = Uuid::new_v4().to_string();
 
-    if let Err(e) = add_api_key(&state.db.pool, api_key.clone(), payload.name).await {
+    if let Err(e) = add_api_key(state.offchain_processor_db, api_key.clone(), payload.name).await {
         tracing::error!("Failed to store API key: {:?}", e);
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
