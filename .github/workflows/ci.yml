@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        toolchain: [nightly]
+        toolchain: [nightly] # Only using nightly toolchain
     steps:
       - name: Install required dependencies
         run: sudo apt update && sudo apt install -y libomp-dev libopenblas-dev
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        toolchain: [nightly]
+        toolchain: [nightly] # Only using nightly toolchain
     steps:
       - uses: actions/checkout@v4
 
@@ -83,7 +83,7 @@ jobs:
       - name: Install Rust toolchain
         run: |
           rustup install nightly
-          rustup default nightly
+          rustup default nightly # Ensure nightly is the default
           rustup component add --toolchain nightly rustfmt clippy
 
       # Set up Docker and Docker Compose
