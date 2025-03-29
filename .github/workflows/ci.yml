@@ -48,75 +48,17 @@ jobs:
 
   lint-rust:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain: [nightly] # Only using nightly toolchain
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain and components
-        run: |
-          rustup install ${{ matrix.toolchain }}
-          rustup component add --toolchain ${{ matrix.toolchain }} rustfmt clippy
+      - name: Install required dependencies
+        run: sudo apt update && sudo apt install -y libomp-dev libopenblas-dev python3-pip
 
-      - name: Run fmt
-        run: cargo +${{ matrix.toolchain }} fmt --all -- --check
+      - name: Install codespell
+        run: pip install codespell
 
-      - name: Run clippy
-        run: cargo +${{ matrix.toolchain }} clippy --workspace -- -D warnings
+      - name: Setup environment
+        run: make setup
 
-  pr-check:
-    runs-on: ubuntu-latest
-    # Add Docker permissions
-    permissions:
-      packages: read
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      # Install dependencies needed for make pr
-      - name: Install dependencies
-        run: |
-          sudo apt update && sudo apt install -y libomp-dev libopenblas-dev python3-pip
-          pip install codespell
-
-      - name: Install Rust toolchain
-        run: |
-          rustup install nightly
-          rustup default nightly # Ensure nightly is the default
-          rustup component add --toolchain nightly rustfmt clippy
-
-      # Set up Docker and Docker Compose
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v3
-
-      # Start Docker Compose services in the background
-      - name: Start Docker services
-        run: docker compose -f docker-compose.test.yml up -d
-
-      # Wait for services to be ready
-      - name: Wait for services to be ready
-        run: |
-          # Wait for PostgreSQL services
-          echo "Waiting for PostgreSQL services..."
-          timeout 60s bash -c "until docker exec $(docker ps -q -f name=offchain_processor_db) pg_isready; do sleep 1; done"
-          timeout 60s bash -c "until docker exec $(docker ps -q -f name=indexer_db) pg_isready; do sleep 1; done"
-
-          # Wait for Katana to be ready
-          echo "Waiting for Katana service..."
-          timeout 60s bash -c "until curl -s http://localhost:5050 > /dev/null; do sleep 1; done"
-
-          echo "All services are ready"
-
-      # Run make pr command which runs linting and testing
-      - name: Run PR checks with Docker support
-        run: make pr
-        env:
-          # Set environment variables to match docker-compose services
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
-          STARKNET_RPC_URL: http://localhost:5050
-
-      # Stop Docker Compose services
-      - name: Stop Docker services
-        run: docker compose -f docker-compose.test.yml down
-        if: always() # Run even if previous steps fail
+      - name: Run linting
+        run: make lint
