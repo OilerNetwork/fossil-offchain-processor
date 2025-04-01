@@ -2,21 +2,33 @@ use db_access::models::BlockHeader;
 use eyre::{anyhow as err, Result};
 use polars::prelude::*;
 
-use super::utils::hex_string_to_f64;
+use super::utils::{
+    drop_nulls, group_by_1h_or_1m_intervals, prepare_data_frame, replace_timestamp_with_date,
+};
 
-/// Calculate cap level using volatility, alpha, and k
-/// @param volatility: volatility of returns as a decimal (e.g., 0.33 is 33%)
+/// Calculate cap level to use for the upcoming round
+///
 /// @param alpha: target percentage of max returns in BPS (e.g., 5000 for 50%)
 /// @param k: strike level in BPS (e.g., -2500 for -25%)
+/// @param blocks: list of block headers
+/// - Requires `5 * 30d = 150d` of block headers for zkvm/mainnet (testnet uses shorter vaults. i.e 5 * 12m = 1h of block headers)
 ///
-/// cl = (λ - k) / (α * (1 + k))
+/// cl = (λ - k) / (α * (1 + k)): 0% <= cl < ∞%
 /// - λ = 2.33 x volatility: 0% <= λ < ∞%
 /// - k: -100.00% < k < ∞%
 /// - a: 0.00% < a <= 100%
 pub async fn calculate_cap_level(alpha: u128, k: i128, blocks: Vec<BlockHeader>) -> Result<f64> {
+    // Validate alpha and k bounds
+    if alpha > 10_000 || alpha <= 0 {
+        return Err(err!("Invalid alpha value: {}", alpha));
+    }
+    if k <= -10000 {
+        return Err(err!("Invalid k value: {}", k));
+    }
+
     // Calculate volatility
     let volatility = calculate_volatility(blocks).await?;
-    tracing::info!("Calculate volatiltiy: {}", volatility);
+    tracing::info!("Calculated volatiltiy: {}", volatility);
 
     // Get percentage values for each variable
     let lambda = 2.33 * volatility;
@@ -37,31 +49,8 @@ pub async fn calculate_cap_level(alpha: u128, k: i128, blocks: Vec<BlockHeader>)
 /// - TWAP & return window: 15 * (1/5) = 3 hours
 /// - Volatility window: 15 * (3/5) = 9 hours
 pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64> {
-    if block_headers.is_empty() {
-        return Err(err!("No block headers provided."));
-    }
-
-    // Prepare DataFrame
-    let mut timestamps = Vec::new();
-    let mut base_fees = Vec::new();
-
-    for header in block_headers {
-        let timestamp = header
-            .timestamp
-            .ok_or_else(|| err!("No timestamp in header"))?;
-        let base_fee = hex_string_to_f64(
-            &header
-                .base_fee_per_gas
-                .ok_or_else(|| err!("No base fee in header"))?,
-        )?;
-        timestamps.push(timestamp);
-        base_fees.push(base_fee);
-    }
-
-    let mut df = DataFrame::new(vec![
-        Series::new("timestamp".into(), timestamps.clone()),
-        Series::new("base_fee".into(), base_fees),
-    ])?;
+    // Prepare data frame
+    let mut df = prepare_data_frame(block_headers)?;
 
     // Convert timestamps to dates
     df = replace_timestamp_with_date(df)?;
@@ -69,10 +58,13 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
     // Group by 1-hour intervals for 30d vaults (or by 1-minute for < 30d vaults)
     df = group_by_1h_or_1m_intervals(df)?;
 
-    // TWAP window is 20% of the data size (30d max)
-    let twap_window = ((df.height() as f64) * 0.2).floor().clamp(1.0, 24.0 * 30.0) as usize;
+    // For 30d vaults (zkvm/mainnet), twap_window is `720` (30d in hours)
+    // For testnet, twap_window is 20% of the data size
+    // - if a 12 min vault passes 5 * 12 = 60min (1h) of block headers
+    // - TWAP window: 60 * (1/5) = 12min
+    let twap_window = ((df.height() as f64) * 0.2).floor().clamp(1.0, 720.0) as usize;
 
-    // Volatility window is 3x the TWAP window (90d max)
+    // For 30d vaults, vol_window is `2160` (90d in hours)
     let vol_window = 3 * twap_window;
 
     tracing::info!(
@@ -82,12 +74,12 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
     );
 
     // 1. Calculate rolling TWAPs
-    df = calculate_twaps(df, twap_window)?;
-    df = drop_nulls(&df, "TWAP_X")?;
+    df = add_twaps(df, twap_window)?;
+    df = drop_nulls(&df, "TWAP_30d")?;
 
     // 2. Calculate rolling returns
     df = calculate_returns(df, twap_window)?;
-    df = drop_nulls(&df, "X_returns")?;
+    df = drop_nulls(&df, "30d_returns")?;
 
     // 3. Calculate volatility over final `vol_window` rows (standard deviation of returns)
     let start_idx = df.height().saturating_sub(vol_window);
@@ -101,165 +93,21 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
 
     // Compute standard deviation of returns in that final chunk
     let volatility = final_chunk
-        .column("X_returns")?
+        .column("30d_returns")?
         .f64()?
         .std(1) // sample std dev
         .ok_or_else(|| eyre::eyre!("No data to compute volatility"))?;
 
     Ok(volatility)
+
     // (NOT NEEDED)
     // Compute rolling volatility
     //df = _compute_volatilitys(df, vol_window)?;
     //df = drop_nulls(&df, "volatility_X")?;
 }
 
-/// Replaces the 'timestamp' column with a 'date' column in a DataFrame.
-fn replace_timestamp_with_date(df: DataFrame) -> Result<DataFrame> {
-    tracing::debug!("DataFrame shape before date conversion: {:?}", df.shape());
-
-    if df.height() == 0 {
-        return Err(err!(
-            "Empty DataFrame provided to replace_timestamp_with_date"
-        ));
-    }
-
-    tracing::debug!(
-        "Time range: min={:?}, max={:?}",
-        df.column("timestamp")?.min::<i64>(),
-        df.column("timestamp")?.max::<i64>()
-    );
-
-    let timestamp_col = df.column("timestamp")?;
-
-    let null_count = timestamp_col.null_count();
-    if null_count > 0 {
-        tracing::warn!("Found {} null values in timestamp column", null_count);
-    }
-
-    let dates = if timestamp_col.dtype() == &DataType::String {
-        tracing::debug!("Converting string timestamps to integers");
-        let int_timestamps = match timestamp_col.cast(&DataType::Int64) {
-            Ok(ints) => ints.i64()?.apply(|s| s.map(|s| s * 1000)),
-            Err(e) => {
-                tracing::error!("Failed to cast string timestamps to integers: {:?}", e);
-                return Err(err!("Failed to cast timestamps: {}", e));
-            }
-        };
-        int_timestamps
-            .into_series()
-            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))?
-            .rename("date".into())
-            .clone()
-    } else {
-        tracing::debug!("Timestamp column is already numeric");
-        timestamp_col
-            .i64()?
-            .apply(|s| s.map(|s| s * 1000))
-            .into_series()
-            .cast(&DataType::Datetime(TimeUnit::Milliseconds, None))?
-            .rename("date".into())
-            .clone()
-    };
-
-    let mut new_cols: Vec<Series> = Vec::new();
-    for col in df.get_columns() {
-        if col.name() != "timestamp" {
-            new_cols.push(col.clone());
-        }
-    }
-    new_cols.push(dates);
-
-    let df = DataFrame::new(new_cols)?;
-    tracing::debug!("DataFrame shape after date conversion: {:?}", df.shape());
-    Ok(df)
-}
-
-/// Groups the DataFrame by 1-hour intervals for 30d vaults and aggregates specified columns.
-/// - For shorter vaults, the data is grouped by 1-minute intervals.
-///
-/// It then calculates the mean values for 'base_fee' within each interval.
-fn group_by_1h_or_1m_intervals(df: DataFrame) -> Result<DataFrame> {
-    tracing::debug!("DataFrame shape before grouping: {:?}", df.shape());
-    // Calculate the total span in days
-    let min_ts = df
-        .column("date")?
-        .datetime()?
-        .min()
-        .ok_or_else(|| err!("No min timestamp"))?;
-    let max_ts = df
-        .column("date")?
-        .datetime()?
-        .max()
-        .ok_or_else(|| err!("No max timestamp"))?;
-
-    let span_millis = max_ts - min_ts;
-    let span_days = (span_millis as f64) / (1000.0 * 60.0 * 60.0 * 24.0);
-
-    tracing::debug!("DataFrame length in days: {:?}", span_days);
-
-    // Decide grouping interval (Tolerance to account for block gaps)
-    let group_by = if span_days < 149.0 {
-        tracing::info!(
-            "Using 1-minute grouping (data span = {:.2} days)",
-            span_days
-        );
-        "1m"
-    } else {
-        tracing::info!("Using 1-hour grouping (data span = {:.2} days)", span_days);
-        "1h"
-    };
-
-    let (every, period) = (Duration::parse(group_by), Duration::parse(group_by));
-
-    // Add a warning for very large datasets
-    if df.height() > 10000 {
-        tracing::warn!(
-            "Processing a large dataset with {} rows. This may take some time.",
-            df.height()
-        );
-    }
-
-    let df = match df
-        .lazy()
-        .group_by_dynamic(
-            col("date"),
-            [],
-            DynamicGroupOptions {
-                every,
-                period,
-                offset: Duration::parse("0"),
-                ..Default::default()
-            },
-        )
-        .agg([col("base_fee").mean()])
-        .collect()
-    {
-        Ok(result) => result,
-        Err(e) => {
-            tracing::error!("Failed to group data by {:?} intervals: {:?}", group_by, e);
-            return Err(err!("Failed to group data: {}", e));
-        }
-    };
-
-    tracing::debug!("DataFrame shape after grouping: {:?}", df.shape());
-    tracing::debug!("DataFrame: {:?}", df);
-
-    Ok(df)
-}
-
-// Removes rows with null values in the specified column and returns a new DataFrame
-fn drop_nulls(df: &DataFrame, column_name: &str) -> Result<DataFrame> {
-    let df = df
-        .clone()
-        .lazy()
-        .filter(col(column_name).is_not_null())
-        .collect()?;
-
-    Ok(df)
-}
-
 // Calculates the Time-Weighted Average Price (TWAP) over a specified window size.
-fn calculate_twaps(df: DataFrame, window_size: usize) -> Result<DataFrame> {
+pub fn add_twaps(df: DataFrame, window_size: usize) -> Result<DataFrame> {
     if df.height() < window_size {
         return Err(err!(
             "Insufficient rows: need at least {} for TWAP, got {}.",
@@ -275,9 +123,11 @@ fn calculate_twaps(df: DataFrame, window_size: usize) -> Result<DataFrame> {
                 .rolling_mean(RollingOptionsFixedWindow {
                     window_size,
                     min_periods: 1,
-                    ..Default::default()
+                    weights: None,
+                    center: false,
+                    fn_params: None,
                 })
-                .alias("TWAP_X"),
+                .alias("TWAP_30d"),
         )
         .collect()?;
 
@@ -289,7 +139,8 @@ fn calculate_returns(df: DataFrame, period: usize) -> Result<DataFrame> {
     let df = df
         .lazy()
         .with_column(
-            (col("TWAP_X") / col("TWAP_X").shift(lit(period as i64)) - lit(1.0)).alias("X_returns"),
+            (col("TWAP_30d") / col("TWAP_30d").shift(lit(period as i64)) - lit(1.0))
+                .alias("30d_returns"),
         )
         .collect()?;
 
@@ -297,7 +148,7 @@ fn calculate_returns(df: DataFrame, period: usize) -> Result<DataFrame> {
 }
 
 // (NOT NEEDED)
-// Rolling volatility over 'window_size' rows on "X_returns" column.
+// Rolling volatility over 'window_size' rows on "30d_returns" column.
 // By default, Polars uses `ddof=1` for rolling_std if you don't specify it.
 // That corresponds to the sample standard deviation.
 fn _compute_volatilitys(df: DataFrame, window_size: usize) -> Result<DataFrame> {
@@ -313,7 +164,7 @@ fn _compute_volatilitys(df: DataFrame, window_size: usize) -> Result<DataFrame> 
     let df = df
         .lazy()
         .with_column(
-            col("X_returns")
+            col("30d_returns")
                 .rolling_std(RollingOptionsFixedWindow {
                     window_size,
                     min_periods: 1,
