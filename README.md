@@ -1,9 +1,5 @@
 # Fossil v0.3
 
-![Fossil v0.3 components interaction](./readme/Fossil%20v0.3%20components%20interaction.png)
-
-![Fossil v0.3 sequence diagram](./readme/Fossil%20v0.3%20sequence%20diagram.png)
-
 ## Development
 
 ### Setup
@@ -19,11 +15,13 @@ This will install all required dependencies, including Rust nightly.
 ### Building
 
 To build the project in release mode:
+
 ```bash
 make build
 ```
 
 For debug mode:
+
 ```bash
 make build-debug
 ```
@@ -31,6 +29,7 @@ make build-debug
 ### Testing
 
 Run all tests:
+
 ```bash
 make test
 ```
@@ -38,11 +37,13 @@ make test
 ### Linting
 
 Format code and run all linters:
+
 ```bash
 make lint
 ```
 
 Individual linting commands:
+
 ```bash
 make fmt        # Format code with rustfmt
 make clippy     # Run clippy linter
@@ -52,6 +53,7 @@ make codespell  # Check for spelling mistakes
 ### Pull Request Preparation
 
 Before submitting a PR, run:
+
 ```bash
 make pr
 ```
@@ -59,6 +61,7 @@ make pr
 This will run all linters and tests to ensure your code is ready for review.
 
 For more available commands:
+
 ```bash
 make help
 ```
