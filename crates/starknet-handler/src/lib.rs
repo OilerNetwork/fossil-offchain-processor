@@ -20,13 +20,15 @@ pub const DEVNET_JUNO_CHAIN_ID: &str = "0x534e5f4a554e4f5f53455155454e434552";
 pub struct JobRequest {
     pub vault_address: Felt,
     pub timestamp: String,
-    pub program_id: Felt, // 'PITCH_LAKE_V1'
+    pub program_id: Felt,
+    pub alpha: u128,
+    pub k: i128,
 }
 
 #[derive(Debug)]
 pub struct PitchLakeResult {
     pub twap: U256,
-    pub volatility: u128,
+    pub cap_level: u128,
     pub reserve_price: U256,
 }
 
@@ -111,13 +113,15 @@ impl FossilStarknetAccount {
 
         // Create a context string for logging
         let context = format!(
-            "client_address={:#064x}, vault_address={:#064x}, timestamp={}, twap={}, volatility={}, reserve_price={}",
+            "client_address={:#064x}, vault_address={:#064x}, timestamp={}, twap={}, cap_level={}, reserve_price={}, alpha={}, k={}",
             client_address,
             job_request.vault_address,
             job_request.timestamp,
             result.twap,
-            result.volatility,
-            result.reserve_price
+            result.cap_level,
+            result.reserve_price,
+            job_request.alpha,
+            job_request.k
         );
 
         // Check if circuit breaker is open
@@ -215,6 +219,8 @@ pub fn format_pitchlake_calldata(
                 .map_err(|e| eyre!("Failed to parse timestamp: {}", e))?,
         ),
         job_request.program_id,
+        Felt::from(job_request.alpha),
+        Felt::from(job_request.k),
     ];
 
     // Prepend JobRequest length
@@ -225,7 +231,7 @@ pub fn format_pitchlake_calldata(
     let pitch_lake_result_felts = vec![
         Felt::from(pitch_lake_result.twap.low()),
         Felt::from(pitch_lake_result.twap.high()),
-        Felt::from(pitch_lake_result.volatility),
+        Felt::from(pitch_lake_result.cap_level),
         Felt::from(pitch_lake_result.reserve_price.low()),
         Felt::from(pitch_lake_result.reserve_price.high()),
         // Mocked proof data
@@ -288,7 +294,31 @@ mod tests {
                 BlockId::Tag(BlockTag::Latest),
             )
             .await
-            .expect("failed to call contract");
+            .expect("failed to call contract (get_round_address)");
+
+        let alpha = provider
+            .call(
+                FunctionCall {
+                    contract_address: vault_address,
+                    entry_point_selector: selector!("get_alpha"),
+                    calldata: vec![],
+                },
+                BlockId::Tag(BlockTag::Latest),
+            )
+            .await
+            .expect("failed to call contract (get_round_address)");
+
+        let k = provider
+            .call(
+                FunctionCall {
+                    contract_address: vault_address,
+                    entry_point_selector: selector!("get_strike_level"),
+                    calldata: vec![],
+                },
+                BlockId::Tag(BlockTag::Latest),
+            )
+            .await
+            .expect("failed to call contract (get_strike_level)");
 
         let deployment_date = provider
             .call(
@@ -306,11 +336,13 @@ mod tests {
             vault_address,
             timestamp: deployment_date[0].to_string(),
             program_id: Felt::from_hex(PITCH_LAKE_V1).unwrap(),
+            alpha: alpha[0].to_string().parse::<u128>()?,
+            k: k[0].to_string().parse::<i128>()?,
         };
 
         let pitch_lake_result = PitchLakeResult {
             twap: U256::from(5000_u64),           // Random TWAP value
-            volatility: 100,                      // Random volatility value
+            cap_level: 100,                       // Random cap_level value
             reserve_price: U256::from(20000_u64), // Random reserve price value
         };
 

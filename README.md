@@ -82,8 +82,10 @@ curl -X POST http://localhost:3000/pricing_data \
     "identifiers": ["0x50495443485f4c414b455f5631"],
     "params": {
       "twap": [1672531200, 1672574400],
-      "volatility": [1672531200, 1672574400],
+      "cap_level": [1672531200, 1672574400],
       "reserve_price": [1672531200, 1672574400]
+      "alpha": 1234,
+      "k": -1234,
     },
     "client_info": {
       "client_address": "0x018df581fe0ee497a4a3595cf62aea0bafa7ba1a54a7dcbafca37bfada67c718",
