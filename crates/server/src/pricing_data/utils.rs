@@ -2,6 +2,19 @@ use db_access::models::BlockHeader;
 use eyre::{anyhow as err, Result};
 use polars::prelude::*;
 
+/// Converts a hex string to a f64 value.
+///
+/// # Arguments
+///
+/// * `hex_str` - The hex string to convert (can be prefixed with "0x" or not)
+///
+/// # Returns
+///
+/// A `Result` containing the converted f64 value, or an `Error` if the conversion fails.
+///
+/// # Errors
+///
+/// Returns an error if the hex string cannot be parsed as a u128.
 pub fn hex_string_to_f64(hex_str: &String) -> Result<f64> {
     let stripped = hex_str.trim_start_matches("0x");
     u128::from_str_radix(stripped, 16)
@@ -9,7 +22,24 @@ pub fn hex_string_to_f64(hex_str: &String) -> Result<f64> {
         .map_err(|e| eyre::eyre!("Error converting hex string '{}' to f64: {}", hex_str, e))
 }
 
-// Load block headers into a DataFrame (timestamp & base_fee fields)
+/// Loads block headers into a DataFrame with timestamp and base_fee fields.
+///
+/// # Arguments
+///
+/// * `block_headers` - A vector of `BlockHeader` structs containing the data to process
+///
+/// # Returns
+///
+/// A `Result` containing a `DataFrame` with timestamp and base_fee columns, or an `Error` if the operation fails.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * No block headers are provided
+/// * A header is missing a timestamp
+/// * A header is missing a base fee
+/// * The timestamp cannot be parsed as i64
+/// * The base fee cannot be converted from hex to f64
 pub fn prepare_data_frame(block_headers: Vec<BlockHeader>) -> Result<DataFrame> {
     if block_headers.is_empty() {
         tracing::error!("No block headers provided.");
@@ -43,39 +73,28 @@ pub fn prepare_data_frame(block_headers: Vec<BlockHeader>) -> Result<DataFrame> 
     return Ok(df);
 }
 
-// Removes rows with null values in the specified column and returns a new DataFrame
-pub fn drop_nulls(df: &DataFrame, column_name: &str) -> Result<DataFrame> {
-    let df = df
-        .clone()
-        .lazy()
-        .filter(col(column_name).is_not_null())
-        .collect()?;
-
-    Ok(df)
-}
-
-/// Replaces the `timestamp` column with a `date` column in a `DataFrame`.
+/// Replaces the timestamp column with a date column in a DataFrame.
 ///
-/// This function takes a `DataFrame` with a `timestamp` column, converts the timestamps
-/// to milliseconds, casts them to datetime, and replaces the `timestamp` column with
-/// a new `date` column.
+/// This function takes a DataFrame with a timestamp column, converts the timestamps
+/// to milliseconds, casts them to datetime, and replaces the timestamp column with
+/// a new date column.
 ///
 /// # Arguments
 ///
-/// * `df` - A mutable reference to the input `DataFrame`.
+/// * `df` - The input DataFrame containing a timestamp column
 ///
 /// # Returns
 ///
-/// A `Result` containing the modified `DataFrame` with the `timestamp` column replaced
-/// by the `date` column, or an `Error` if the operation fails.
+/// A `Result` containing the modified DataFrame with the timestamp column replaced
+/// by the date column, or an `Error` if the operation fails.
 ///
 /// # Errors
 ///
-/// This function will return an error if:
-/// * The `timestamp` column is missing or cannot be accessed.
-/// * The conversion to milliseconds or casting to datetime fails.
-/// * The column replacement or renaming operations fail.
-///
+/// Returns an error if:
+/// * The DataFrame is empty
+/// * The timestamp column is missing or cannot be accessed
+/// * The conversion to milliseconds or casting to datetime fails
+/// * The column replacement or renaming operations fail
 pub fn replace_timestamp_with_date(df: DataFrame) -> Result<DataFrame> {
     tracing::debug!("DataFrame shape before date conversion: {:?}", df.shape());
 
@@ -136,22 +155,94 @@ pub fn replace_timestamp_with_date(df: DataFrame) -> Result<DataFrame> {
     Ok(df)
 }
 
-/// Groups a DataFrame into 1-hour basefee averages for data spanning > 7days.
-// - For shorter (testnet) data spans, the data is grouped by 1-minute intervals.
+/// Adds a Time-Weighted Average Price (TWAP) column to the DataFrame.
+///
+/// This function calculates the TWAP for the base_fee column and adds it as a new column
+/// named TWAP_30d to the input DataFrame.
 ///
 /// # Arguments
 ///
-/// * `df` - The input `DataFrame` to be grouped and aggregated.
+/// * `df` - The input DataFrame containing the base_fee column
+/// * `window_size` - The size of the rolling window for the TWAP calculation
+///   * If data is hourly grouped, 720 means 30d TWAP
 ///
 /// # Returns
 ///
-/// A `Result` containing the grouped and aggregated `DataFrame`, or an `Error` if the operation fails.
+/// A `Result` containing the DataFrame with the added TWAP_30d column, or an `Error` if the operation fails.
 ///
 /// # Errors
 ///
-/// This function will return an error if:
-/// * The grouping or aggregation operations fail.
-/// * The final collection of the lazy `DataFrame` fails.
+/// Returns an error if:
+/// * There are insufficient rows for the TWAP calculation
+/// * The rolling mean calculation fails
+/// * The final collection of the lazy DataFrame fails
+pub fn add_twaps(df: DataFrame, window_size: usize) -> Result<DataFrame> {
+    if df.height() < window_size {
+        return Err(err!(
+            "Insufficient rows: need at least {} for TWAP, got {}.",
+            window_size,
+            df.height()
+        ));
+    }
+
+    let df = df
+        .lazy()
+        .with_column(
+            col("base_fee")
+                .rolling_mean(RollingOptionsFixedWindow {
+                    window_size,
+                    min_periods: window_size,
+                    weights: None,
+                    center: false,
+                    fn_params: None,
+                })
+                .alias("TWAP_30d"),
+        )
+        .collect()?;
+
+    Ok(df)
+}
+
+/// Removes rows with null values in the specified column.
+///
+/// This function filters the input DataFrame to exclude null entries in the specified column.
+///
+/// # Arguments
+///
+/// * `df` - The input DataFrame to filter
+/// * `column_name` - The name of the column to check for null values
+///
+/// # Returns
+///
+/// A `Result` containing the filtered DataFrame, or an `Error` if the operation fails.
+pub fn drop_nulls(df: &DataFrame, column_name: &str) -> Result<DataFrame> {
+    let df = df
+        .clone()
+        .lazy()
+        .filter(col(column_name).is_not_null())
+        .collect()?;
+
+    Ok(df)
+}
+
+/// Groups a DataFrame into 1-hour or 1-minute basefee averages.
+///
+/// For data spanning over 7 days, the data is grouped into 1-hour averages.
+/// For shorter (testnet) data ranges, the data is grouped by 1-minute averages.
+///
+/// # Arguments
+///
+/// * `df` - The input DataFrame to be grouped and aggregated
+///
+/// # Returns
+///
+/// A `Result` containing the grouped and aggregated DataFrame, or an `Error` if the operation fails.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// * The grouping or aggregation operations fail
+/// * The final collection of the lazy DataFrame fails
 pub fn group_by_1h_or_1m_intervals(df: DataFrame) -> Result<DataFrame> {
     tracing::debug!("DataFrame shape before grouping: {:?}", df.shape());
     // Calculate the total span in days

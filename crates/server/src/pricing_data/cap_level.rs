@@ -3,7 +3,8 @@ use eyre::{anyhow as err, Result};
 use polars::prelude::*;
 
 use super::utils::{
-    drop_nulls, group_by_1h_or_1m_intervals, prepare_data_frame, replace_timestamp_with_date,
+    add_twaps, drop_nulls, group_by_1h_or_1m_intervals, prepare_data_frame,
+    replace_timestamp_with_date,
 };
 
 /// Calculate cap level to use for the upcoming round
@@ -104,34 +105,6 @@ pub async fn calculate_volatility(block_headers: Vec<BlockHeader>) -> Result<f64
     // Compute rolling volatility
     //df = _compute_volatilitys(df, vol_window)?;
     //df = drop_nulls(&df, "volatility_X")?;
-}
-
-// Calculates the Time-Weighted Average Price (TWAP) over a specified window size.
-pub fn add_twaps(df: DataFrame, window_size: usize) -> Result<DataFrame> {
-    if df.height() < window_size {
-        return Err(err!(
-            "Insufficient rows: need at least {} for TWAP, got {}.",
-            window_size,
-            df.height()
-        ));
-    }
-
-    let df = df
-        .lazy()
-        .with_column(
-            col("base_fee")
-                .rolling_mean(RollingOptionsFixedWindow {
-                    window_size,
-                    min_periods: window_size,
-                    weights: None,
-                    center: false,
-                    fn_params: None,
-                })
-                .alias("TWAP_30d"),
-        )
-        .collect()?;
-
-    Ok(df)
 }
 
 /// Calculates 30-day returns based on TWAP values (column "TWAP_30d").
