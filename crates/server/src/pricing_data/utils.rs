@@ -9,6 +9,7 @@ pub fn hex_string_to_f64(hex_str: &String) -> Result<f64> {
         .map_err(|e| eyre::eyre!("Error converting hex string '{}' to f64: {}", hex_str, e))
 }
 
+// Load block headers into a DataFrame (timestamp & base_fee fields)
 pub fn prepare_data_frame(block_headers: Vec<BlockHeader>) -> Result<DataFrame> {
     if block_headers.is_empty() {
         tracing::error!("No block headers provided.");
@@ -135,10 +136,8 @@ pub fn replace_timestamp_with_date(df: DataFrame) -> Result<DataFrame> {
     Ok(df)
 }
 
-// Groups (shrinks) the DataFrame into 1-hour averages for 30d vaults and aggregates specified columns.
-// - For shorter vaults (testnet), the data is grouped by 1-minute intervals.
-///
-/// It then calculates the mean values for 'base_fee' within each interval.
+/// Groups a DataFrame into 1-hour basefee averages for data spanning > 7days.
+// - For shorter (testnet) data spans, the data is grouped by 1-minute intervals.
 ///
 /// # Arguments
 ///
@@ -173,7 +172,7 @@ pub fn group_by_1h_or_1m_intervals(df: DataFrame) -> Result<DataFrame> {
     tracing::debug!("DataFrame length in days: {:?}", span_days);
 
     // Decide grouping interval (Tolerance to account for block gaps)
-    let group_by = if span_days < 149.0 {
+    let group_by = if span_days < 7.0 {
         tracing::info!(
             "Using 1-minute grouping (data span = {:.2} days)",
             span_days
@@ -183,7 +182,6 @@ pub fn group_by_1h_or_1m_intervals(df: DataFrame) -> Result<DataFrame> {
         tracing::info!("Using 1-hour grouping (data span = {:.2} days)", span_days);
         "1h"
     };
-
     let (every, period) = (Duration::parse(group_by), Duration::parse(group_by));
 
     let df = match df
@@ -353,7 +351,6 @@ mod tests {
 
         let df = replace_timestamp_with_date(df).expect("Failed to convert timestamps");
         let df = group_by_1h_or_1m_intervals(df).expect("Failed to group");
-        println!("DataFrame: {:?}", df);
 
         // Check shape
         let in_hours = 24 * 30 * 5;
