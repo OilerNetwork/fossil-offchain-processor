@@ -70,7 +70,7 @@ pub fn prepare_data_frame(block_headers: Vec<BlockHeader>) -> Result<DataFrame> 
         Series::new("base_fee".into(), base_fees),
     ])?;
 
-    return Ok(df);
+    Ok(df)
 }
 
 /// Replaces the timestamp column with a date column in a DataFrame.

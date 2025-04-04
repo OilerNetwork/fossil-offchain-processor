@@ -20,7 +20,7 @@ use super::utils::{
 /// - a: 0.00% < a <= 100%
 pub async fn calculate_cap_level(alpha: u128, k: i128, blocks: Vec<BlockHeader>) -> Result<f64> {
     // Validate alpha and k bounds
-    if alpha > 10_000 || alpha <= 0 {
+    if alpha > 10_000 || alpha == 0 {
         return Err(err!("Invalid alpha value: {}", alpha));
     }
     if k <= -10000 {
