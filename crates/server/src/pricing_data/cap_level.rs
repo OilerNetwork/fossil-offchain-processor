@@ -122,7 +122,7 @@ pub fn add_twaps(df: DataFrame, window_size: usize) -> Result<DataFrame> {
             col("base_fee")
                 .rolling_mean(RollingOptionsFixedWindow {
                     window_size,
-                    min_periods: 1,
+                    min_periods: window_size,
                     weights: None,
                     center: false,
                     fn_params: None,
@@ -131,7 +131,7 @@ pub fn add_twaps(df: DataFrame, window_size: usize) -> Result<DataFrame> {
         )
         .collect()?;
 
-    Ok(df.fill_null(FillNullStrategy::Backward(None))?)
+    Ok(df)
 }
 
 /// Calculates 30-day returns based on TWAP values (column "TWAP_30d").
