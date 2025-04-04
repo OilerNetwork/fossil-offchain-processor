@@ -437,7 +437,7 @@ async fn fetch_headers(
             let now = Instant::now();
             tracing::info!("Started processing...");
 
-            // Get twap future
+            // Get twap value
             let twap = calculate_twap(twap);
 
             // Get cap level value
@@ -445,7 +445,7 @@ async fn fetch_headers(
 
             // Get reserve price future
             let reserve_price = match cap_level {
-                Ok(val) => calculate_reserve_price(reserve, val), // val is f64 and Copy
+                Ok(cl) => calculate_reserve_price(reserve, cl, k),
                 Err(e) => {
                     tracing::error!("No cap level to pass to reserve price {}.", e);
                     return Err(e);
