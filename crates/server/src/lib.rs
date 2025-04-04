@@ -13,8 +13,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use db_access::DbConnection;
-use sqlx::PgPool;
+use db_access::{IndexerDbConnection, OffchainProcessorDbConnection};
 use std::sync::Arc;
 use std::time::Duration;
 use tower_http::{
@@ -24,12 +23,18 @@ use tower_http::{
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: Arc<DbConnection>,
+    pub offchain_processor_db: Arc<OffchainProcessorDbConnection>,
+    pub indexer_db: Arc<IndexerDbConnection>,
 }
 
-pub async fn create_app(pool: PgPool) -> Router {
-    let db = DbConnection { pool };
-    let app_state = AppState { db: Arc::new(db) };
+pub async fn create_app(
+    offchain_processor_db: Arc<OffchainProcessorDbConnection>,
+    indexer_db: Arc<IndexerDbConnection>,
+) -> Router {
+    let app_state = AppState {
+        offchain_processor_db,
+        indexer_db,
+    };
 
     // Define the CORS layer
     let allowed_origins = std::env::var("ALLOWED_ORIGINS")

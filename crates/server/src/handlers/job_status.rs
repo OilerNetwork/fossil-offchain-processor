@@ -12,7 +12,7 @@ pub async fn get_job_status(
 ) -> (StatusCode, Json<GetJobStatusResponseEnum>) {
     tracing::info!("Getting status for job_id: {}", job_id);
 
-    match get_job_request(&state.db.pool, &job_id).await {
+    match get_job_request(state.offchain_processor_db, &job_id).await {
         Ok(Some(job)) => {
             tracing::info!("Found job status: {:?} for job_id: {}", job.status, job_id);
             (

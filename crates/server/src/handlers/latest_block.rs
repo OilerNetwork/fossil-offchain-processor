@@ -11,7 +11,7 @@ pub async fn get_latest_block_number(
 ) -> (StatusCode, Json<GetLatestBlockResponseEnum>) {
     tracing::info!("Getting the latest block number");
 
-    match latest_block_number(&state.db.pool).await {
+    match latest_block_number(state.indexer_db).await {
         Ok(Some(block_header)) => {
             tracing::info!("Latest block found: {:?}", block_header);
             if let Some(timestamp) = block_header.timestamp {
@@ -125,7 +125,7 @@ mod tests {
 
         // Drop the blockheaders table to cause a database error
         sqlx::query("DROP TABLE blockheaders")
-            .execute(&ctx.db_pool)
+            .execute(&ctx.indexer_db.db_connection().pool)
             .await
             .expect("Failed to drop table");
 

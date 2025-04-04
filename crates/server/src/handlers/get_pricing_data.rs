@@ -1,3 +1,4 @@
+use db_access::{IndexerDbConnection, OffchainProcessorDbConnection};
 use dotenv::dotenv;
 use std::env;
 use std::sync::Arc;
@@ -20,7 +21,6 @@ use db_access::{
     queries::{
         create_job_request, get_block_headers_by_time_range, get_job_request, update_job_status,
     },
-    DbConnection,
 };
 use eyre::{eyre, Result};
 use starknet::core::types::U256;
@@ -57,7 +57,7 @@ pub async fn get_pricing_data(
 
     tracing::info!("Generated job_id: {}. {}", job_id, context);
 
-    match get_job_request(&state.db.pool, &job_id).await {
+    match get_job_request(state.offchain_processor_db.clone(), &job_id).await {
         Ok(Some(job_request)) => {
             tracing::info!(
                 "Found existing job with status: {}. {}",
@@ -149,16 +149,24 @@ async fn handle_new_job_request(
     payload: PitchLakeJobRequest,
     starknet_account: FossilStarknetAccount,
 ) -> (StatusCode, Json<JobResponse>) {
-    match create_job_request(&state.db.pool, &job_id, JobStatus::Pending).await {
+    match create_job_request(
+        state.offchain_processor_db.clone(),
+        &job_id,
+        JobStatus::Pending,
+    )
+    .await
+    {
         Ok(_) => {
             tracing::info!("New job request registered and processing initiated.");
-            let db_clone = state.db.clone();
+            let offchain_processor_db_clone = state.offchain_processor_db.clone();
+            let indexer_db_clone = state.indexer_db.clone();
             let job_id_clone = job_id.clone();
             let handle = Handle::current();
 
             tokio::task::spawn_blocking(move || {
                 handle.block_on(process_job(
-                    db_clone,
+                    offchain_processor_db_clone,
+                    indexer_db_clone,
                     job_id_clone,
                     payload,
                     starknet_account,
@@ -187,16 +195,25 @@ async fn reprocess_failed_job(
     payload: PitchLakeJobRequest,
     starknet_account: FossilStarknetAccount,
 ) -> (StatusCode, Json<JobResponse>) {
-    if let Err(e) = update_job_status(&state.db.pool, &job_id, JobStatus::Pending, None).await {
+    if let Err(e) = update_job_status(
+        state.offchain_processor_db.clone(),
+        &job_id,
+        JobStatus::Pending,
+        None,
+    )
+    .await
+    {
         return internal_server_error(e, job_id);
     }
-    let db_clone = state.db.clone();
+    let offchain_processor_db_clone = state.offchain_processor_db.clone();
+    let indexer_db_clone = state.indexer_db.clone();
     let job_id_clone = job_id.clone();
     let handle = Handle::current();
 
     tokio::task::spawn_blocking(move || {
         handle.block_on(process_job(
-            db_clone,
+            offchain_processor_db_clone,
+            indexer_db_clone,
             job_id_clone,
             payload,
             starknet_account,
@@ -238,7 +255,8 @@ fn internal_server_error(error: sqlx::Error, job_id: String) -> (StatusCode, Jso
 
 // Process the job and trigger the Starknet callback
 async fn process_job(
-    db: Arc<DbConnection>,
+    offchain_processor_db: Arc<OffchainProcessorDbConnection>,
+    indexer_db: Arc<IndexerDbConnection>,
     job_id: String,
     payload: PitchLakeJobRequest,
     starknet_account: FossilStarknetAccount,
@@ -259,7 +277,7 @@ async fn process_job(
     tracing::info!("Starting job processing. {}", context);
     tracing::debug!("Payload received: {:?}. {}", payload, context);
 
-    let job_result = match fetch_headers(&db, &payload).await {
+    let job_result = match fetch_headers(indexer_db.clone(), &payload).await {
         Ok(Some((twap, cap_level, reserve_price))) => {
             tracing::info!(
                 "Fetched block headers. Calculated values: TWAP = {}, Cap Level = {}, Reserve Price = {}. {}",
@@ -273,7 +291,7 @@ async fn process_job(
             };
 
             if let Err(e) = update_job_status(
-                &db.pool,
+                offchain_processor_db.clone(),
                 &job_id,
                 JobStatus::Completed,
                 Some(serde_json::json!({
@@ -300,7 +318,7 @@ async fn process_job(
                     let error_msg = format!("Failed to parse program ID: {:?}", e);
                     tracing::error!("{}. {}", error_msg, context);
                     let _ = update_job_status(
-                        &db.pool,
+                        offchain_processor_db.clone(),
                         &job_id,
                         JobStatus::Failed,
                         Some(serde_json::json!({
@@ -341,7 +359,7 @@ async fn process_job(
                     let error_msg = format!("Starknet callback failed. Error: {:?}", e);
                     tracing::error!("{}. {}", error_msg, context);
                     let _ = update_job_status(
-                        &db.pool,
+                        offchain_processor_db.clone(),
                         &job_id,
                         JobStatus::Failed,
                         Some(serde_json::json!({
@@ -357,7 +375,7 @@ async fn process_job(
             let error_msg = "Failed to fetch headers or calculate pricing data";
             tracing::error!("{}. {}", error_msg, context);
             let _ = update_job_status(
-                &db.pool,
+                offchain_processor_db.clone(),
                 &job_id,
                 JobStatus::Failed,
                 Some(serde_json::json!({
@@ -371,7 +389,7 @@ async fn process_job(
             let error_msg = format!("Error fetching headers: {:?}", e);
             tracing::error!("{}. {}", error_msg, context);
             let _ = update_job_status(
-                &db.pool,
+                offchain_processor_db.clone(),
                 &job_id,
                 JobStatus::Failed,
                 Some(serde_json::json!({
@@ -395,7 +413,7 @@ async fn process_job(
 
 // Helper to fetch block headers in parallel
 async fn fetch_headers(
-    db: &Arc<DbConnection>,
+    db: Arc<IndexerDbConnection>,
     payload: &PitchLakeJobRequest,
 ) -> Result<Option<(f64, f64, f64)>, eyre::Error> {
     tracing::debug!("Fetching block headers for calculations.");
@@ -411,17 +429,17 @@ async fn fetch_headers(
 
     let (twap_headers, cap_level_headers, reserve_price_headers) = join!(
         get_block_headers_by_time_range(
-            &db.pool,
+            db.clone(),
             payload.params.twap.0.to_string(),
             payload.params.twap.1.to_string()
         ),
         get_block_headers_by_time_range(
-            &db.pool,
+            db.clone(),
             payload.params.cap_level.0.to_string(),
             payload.params.cap_level.1.to_string()
         ),
         get_block_headers_by_time_range(
-            &db.pool,
+            db.clone(),
             payload.params.reserve_price.0.to_string(),
             payload.params.reserve_price.1.to_string()
         )
